@@ -3,6 +3,7 @@ import websockets
 import json
 import numpy as np
 import datetime
+import pytz
 from typing import Callable, Awaitable, Optional, List, Dict
 from sortedcontainers import SortedDict
 from uuid import uuid4
@@ -129,8 +130,8 @@ class BitBankSocketClient:
             for trs in transactions:
                 # {"transaction_id":1201050197,"side":"buy","price":"12113485","amount":"0.0020","executed_at":1744941514688}
                 data = MarketTrade(
-                    timestamp=datetime.datetime.now(),
-                    market_created_timestamp=datetime.datetime.fromtimestamp(trs["executed_at"] / 1e3),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    market_created_timestamp=datetime.datetime.fromtimestamp(trs["executed_at"] / 1e3, tz=pytz.timezone("Asia/Tokyo")),
                     sym=ccypair.replace("_", "").upper(),
                     venue=VENUE.BITBANK,
                     side=+1 if trs["side"] == 'buy' else -1,
@@ -147,8 +148,8 @@ class BitBankSocketClient:
             sequence_id = int(book_msg["sequenceId"])
             # refresh market book
             cur_book = self.market_book[ccypair]
-            cur_book.timestamp = datetime.datetime.now()
-            cur_book.market_created_timestamp = datetime.datetime.fromtimestamp(book_msg["timestamp"] / 1e3)
+            cur_book.timestamp = datetime.datetime.now(datetime.timezone.utc)
+            cur_book.market_created_timestamp = datetime.datetime.fromtimestamp(book_msg["timestamp"] / 1e3, tz=pytz.timezone("Asia/Tokyo"))
             cur_book.bids = SortedDict({float(price): float(amt) for price, amt in book_msg["bids"]})
             cur_book.asks = SortedDict({float(price): float(amt) for price, amt in book_msg["asks"]})
             cur_book.universal_id = uuid4().hex
@@ -187,8 +188,8 @@ class BitBankSocketClient:
                 last_update = cur_book.timestamp
                 cur_book.universal_id = uuid4().hex
                 if cur_book.misc[-1] < sequence_id:
-                    cur_book.timestamp = datetime.datetime.now()
-                    cur_book.market_created_timestamp = datetime.datetime.fromtimestamp(msg["t"] / 1e3)
+                    cur_book.timestamp = datetime.datetime.now(datetime.timezone.utc)
+                    cur_book.market_created_timestamp = datetime.datetime.fromtimestamp(msg["t"] / 1e3, tz=pytz.timezone("Asia/Tokyo"))
                     for diff in msg["a"]:
                         price, amt = float(diff[0]), float(diff[1])
                         if amt == 0 and price in cur_book.asks.keys():
