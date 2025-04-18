@@ -46,6 +46,7 @@ class BitBankSocketClient:
             self.channels.append(f"transactions_{ccy_pair}")
             self.channels.append(f"depth_whole_{ccy_pair}")
             self.channels.append(f"depth_diff_{ccy_pair}")
+            self.channels.append(f"circuit_break_info_{ccy_pair}")
             self.market_book[ccy_pair] = MarketBook(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.BITBANK, misc=["null", 0])
             self.rate[ccy_pair] = Rate(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.BITBANK)
             self.diff_message_buffer[ccy_pair] = SortedDict()
@@ -209,6 +210,13 @@ class BitBankSocketClient:
                 if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
                 if last_update + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant.info(json.dumps(cur_book.to_dict())))  # store
+
+        elif body["room_name"].startswith("circuit_break_info"):
+            msg = body["message"]["data"]
+            msg["_data_type"] = "CirbuitBreaker"
+            msg["recived_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            msg["timestamp"] = datetime.datetime.fromtimestamp(msg["timestamp"] / 1e3, tz=pytz.timezone("Asia/Tokyo")).isoformat()
+            asyncio.create_task(self.ticker_plant.info(json.dumps(msg)))  # store
 
         if body["room_name"].startswith("depth"):
             # Create Rate data from local market book
