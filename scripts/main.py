@@ -10,7 +10,7 @@ if __name__ == '__main__':
     async def main():
         try:
             await asyncio.gather(
-                # bitbank.start(),
+                bitbank.start(),
                 bitmex.start()
             )
         except KeyboardInterrupt:
@@ -18,7 +18,7 @@ if __name__ == '__main__':
         finally:
             print("Closing connections...")
             await asyncio.gather(
-                # bitbank.close(),
+                bitbank.close(),
                 bitmex.close()
             )
 
