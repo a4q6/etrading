@@ -45,6 +45,7 @@ class BitBankSocketClient:
         self.market_book: Dict[str, MarketBook] = {}
         self.rate: Dict[str, Rate] = {}
         self.diff_message_buffer: Dict[str, SortedDict] = {}
+        self.last_emit_market_book = {}
         for ccy_pair in ccy_pairs:
             self.channels.append(f"transactions_{ccy_pair}")
             self.channels.append(f"depth_whole_{ccy_pair}")
@@ -53,6 +54,7 @@ class BitBankSocketClient:
             self.market_book[ccy_pair] = MarketBook(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.BITBANK, misc=["null", 0])
             self.rate[ccy_pair] = Rate(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.BITBANK)
             self.diff_message_buffer[ccy_pair] = SortedDict()
+            self.last_emit_market_book[ccy_pair] = datetime.datetime(2000, 1, 1, tzinfo=pytz.timezone("UTC"))
 
     async def start(self):
         self.attempts = 0
@@ -211,8 +213,9 @@ class BitBankSocketClient:
 
                 # distribute
                 if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
-                if last_update + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
+                if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
+                    self.last_emit_market_book[ccypair] = cur_book.timestamp
 
         elif body["room_name"].startswith("circuit_break_info"):
             msg = body["message"]["data"]
@@ -228,6 +231,7 @@ class BitBankSocketClient:
                 new_rate = cur_book.to_rate()
                 if self.rate[ccypair].mid_price != new_rate.mid_price:
                     self.rate[ccypair] = new_rate
+                    if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
 if __name__ == '__main__':
@@ -236,4 +240,4 @@ if __name__ == '__main__':
         asyncio.run(client.start())
     except KeyboardInterrupt:
         print("Disconnected")
-        asyncio.gather(client.close())
+        asyncio.run(client.close())
