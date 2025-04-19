@@ -112,6 +112,8 @@ class BitBankSocketClient:
         self._running = False
         if self._ws:
             await self._ws.close()
+        for logger in self.ticker_plant.values():
+            logger.stop()
 
     async def _process_message(self, raw_msg: str):
         

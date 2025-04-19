@@ -12,7 +12,7 @@ class AsyncBufferedLogger:
         Buffered & multi-threaded logger for websocket message logging.
     """
     
-    executor = ThreadPoolExecutor(max_workers=2)
+    executor = ThreadPoolExecutor(max_workers=3)
 
     def __init__(
         self,

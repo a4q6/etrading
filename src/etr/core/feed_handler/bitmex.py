@@ -112,6 +112,8 @@ class BitmexSocketClient:
         if self.ws:
             await self.ws.close()
             self._ping_task.cancel()
+        for logger in self.ticker_plant.values():
+            logger.stop()
 
     async def on_message(self, message):
 
