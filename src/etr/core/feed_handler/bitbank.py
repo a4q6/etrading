@@ -52,18 +52,17 @@ class BitBankSocketClient:
             self.diff_message_buffer[ccy_pair] = SortedDict()
 
     async def start(self):
-        attempt = 0
+        self.attempts = 0
         while self._running:
-            if self.reconnect_attempts is not None and attempt >= self.reconnect_attempts:
+            if self.reconnect_attempts is not None and self.attempts >= self.reconnect_attempts:
                 self.logger.error("Reached max connection attempts, stop listening.")
                 break
             try:
                 await self._connect()
-                attempt = 0  # reset if suceeded
             except Exception as e:
-                attempt += 1
-                self.logger.error(f"Connection Error (#Attempts={attempt}): {e}", exc_info=True)
-                sleep_sec = 10 * np.log(attempt)
+                self.attempts += 1
+                self.logger.error(f"Connection Error (#Attempts={self.attempt}): {e}", exc_info=True)
+                sleep_sec = 10 * np.log(self.attempts)
                 self.logger.info(f"Wait {round(sleep_sec, 2)} seconds to reconnect...")
                 await asyncio.sleep(sleep_sec)
 
@@ -85,6 +84,7 @@ class BitBankSocketClient:
                         continue
                     elif raw_msg.startswith("40"):
                         self.logger.info(f"Connection established: {raw_msg}")
+                        self.attempts = 0  # reset retry counts
                         for channel in self.channels:
                             subscribe_msg = f'42["join-room","{channel}"]'
                             await self._ws.send(subscribe_msg)
