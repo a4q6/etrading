@@ -34,7 +34,7 @@ class BitmexSocketClient:
             ccy_pair: AsyncBufferedLogger(logger_name=f"TP-{self.__class__.__name__}-{ccy_pair}", log_dir=tp_file.as_posix())
             for ccy_pair in ccy_pairs
         }
-        self.logger = LoggerFactory(logfile=log_file).getLogger(logger_name=self.__class__.__name__)
+        self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
 
         self.ws = None
         self._running = True

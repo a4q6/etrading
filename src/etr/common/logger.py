@@ -11,29 +11,21 @@ import logging.handlers
 
 class LoggerFactory:
     """
-        Normal logger factory class, which is intended to be used in ordinal classes.
+        Normal logger factory class, which is intended to be used for process logging.
     """
     _instances = {}
 
-    def __init__(self, logfile: str = None, loglevel=logging.INFO):
-        """ Factory class for logger. 
-            yourlogger = LoggerFactory(log_filepath).getLogger(logger_name)
-        Args:
-            logfile (str, optional): path to generate *.log file. Defaults to None.
-            loglevel (int, optional): Defaults to logging.INFO.
-        """
-        self.loglevel = loglevel
-        if logfile is not None:
-            self.logfile = Path(logfile)
-            self.logfile.parent.mkdir(parents=True, exist_ok=True)
-        else:
-            self.logfile = None
-
-    def getLogger(self, logger_name: str) -> logging.Logger:
+    def get_logger(
+        self,
+        logger_name: str,
+        log_file: str = None,
+        log_level = logging.INFO,
+    ) -> logging.Logger:
         
         if logger_name in LoggerFactory._instances.keys():
             return LoggerFactory._instances[logger_name]
         else:
+            # create logger
             fmt = '%(asctime)s.%(msecs)-03d|%(levelname)-8s|%(name)s: %(module)s.%(funcName)s %(lineno)d|%(message)s'
             formatter = logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
             logger = logging.getLogger(logger_name)
@@ -44,12 +36,14 @@ class LoggerFactory:
             logger.addHandler(handler)
 
             # add file Handler
-            if self.logfile is not None:
-                handler = logging.handlers.TimedRotatingFileHandler(filename=self.logfile, when='MIDNIGHT', backupCount=30, utc=True)
+            if log_file is not None:
+                log_file = Path(log_file)
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                handler = logging.handlers.TimedRotatingFileHandler(filename=log_file, when='MIDNIGHT', backupCount=30, utc=True)
                 handler.setFormatter(formatter)
                 logger.addHandler(handler)
             
-            logger.setLevel(self.loglevel)
+            logger.setLevel(log_level)
 
             # register instance
             LoggerFactory._instances[logger_name] = logger

@@ -26,13 +26,14 @@ class BitBankSocketClient:
         self.ws_url = "wss://stream.bitbank.cc/socket.io/?EIO=4&transport=websocket"
         self.callbacks = callbacks
 
+        # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
         tp_file = Path(Config.TP_DIR)
         self.ticker_plant: Dict[str, AsyncBufferedLogger] = {
             ccy_pair: AsyncBufferedLogger(logger_name=f"TP-{self.__class__.__name__}-{ccy_pair}", log_dir=tp_file.as_posix())
             for ccy_pair in ccy_pairs
         }
-        self.logger = LoggerFactory(logfile=log_file).getLogger(logger_name=self.__class__.__name__)
+        self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
         
         # status flags
         self._ws = None
