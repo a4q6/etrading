@@ -25,6 +25,8 @@ class HdbDumper:
         self.process: Optional[Process] = None
 
     def dump_to_hdb(self, log_file: Path, skip_if_exists = True) -> None:
+
+        self.logger.info(f"Start extraction for '{Path(log_file).name}'")
         # inspect first 100 lines
         logger_name = Path(log_file).name.split("-")[1]
         date = Path(log_file).name.split(".")[-1]
@@ -50,7 +52,6 @@ class HdbDumper:
             return
         
         # Proceed to extraction
-        self.logger.info(f"Run extraction for '{Path(log_file).name}'")
         records = {table: [] for table in self.table_list[logger_name]}
         with open(log_file, "r", encoding="utf-8") as f:
             for i, line in tqdm(enumerate(f)):
