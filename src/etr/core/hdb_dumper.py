@@ -42,11 +42,11 @@ class HdbDumper:
         first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
 
         # check existing files
-        exists_any = True
+        exists_any = False
         for venue, sym in first_records.values:
             for table in self.table_list[logger_name]:
                 path = self.build_path(table, date, venue, sym)
-                exists_any = exists_any and path.exists()
+                exists_any = exists_any or path.exists()
         if exists_any and skip_if_exists:
             self.logger.info(f"All the files are ready for '{Path(log_file).name}', skip processing")
             return
