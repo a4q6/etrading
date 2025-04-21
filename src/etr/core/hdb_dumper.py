@@ -42,12 +42,12 @@ class HdbDumper:
         first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
 
         # check existing files
-        exists_all = True
+        exists_any = True
         for venue, sym in first_records.values:
             for table in self.table_list[logger_name]:
                 path = self.build_path(table, date, venue, sym)
-                exists_all = exists_all and path.exists()
-        if exists_all and skip_if_exists:
+                exists_any = exists_any and path.exists()
+        if exists_any and skip_if_exists:
             self.logger.info(f"All the files are ready for '{Path(log_file).name}', skip processing")
             return
         
@@ -79,6 +79,8 @@ class HdbDumper:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     df.to_parquet(path)
                     self.logger.info(f"Saved '{path}'")
+                else:
+                    self.logger.info(f"No record, skipped '{path}'")
 
 
     def build_path(self, table, date, venue, sym) -> Path:
