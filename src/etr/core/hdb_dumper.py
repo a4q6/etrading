@@ -86,7 +86,7 @@ class HdbDumper:
     def build_path(self, table, date, venue, sym) -> Path:
         ymd = pd.Timestamp(date).strftime("%Y-%m-%d")
         fname = f"{table}_{venue}_{sym}_{date}.parquet"
-        return Path(self.hdb_dir).joinpath(f"{table}/{venue}/{date}/{fname}")
+        return Path(self.hdb_dir).joinpath(f"{table}/{venue}/{date}/{sym}/{fname}")
 
     def list_log_files(self) -> pd.DataFrame:
         # DataFrame[path, fname, logger_name, date]
