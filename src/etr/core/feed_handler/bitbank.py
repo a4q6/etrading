@@ -222,9 +222,11 @@ class BitBankSocketClient:
 
         elif body["room_name"].startswith("circuit_break_info"):
             msg = body["message"]["data"]
-            msg["_data_type"] = "CirbuitBreaker"
-            msg["recived_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            msg["_data_type"] = "CircuitBreaker"
+            msg["received_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             msg["timestamp"] = datetime.datetime.fromtimestamp(msg["timestamp"] / 1e3, tz=pytz.timezone("Asia/Tokyo")).isoformat()
+            msg["sym"] = ccypair.replace("_", "").upper()
+            msg["venue"] = VENUE.BITBANK
             asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(msg)))  # store
 
         if body["room_name"].startswith("depth"):
