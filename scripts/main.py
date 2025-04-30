@@ -2,12 +2,14 @@ import asyncio
 from etr.core.feed_handler.bitbank import BitBankSocketClient
 from etr.core.feed_handler.bitmex import BitmexSocketClient
 from etr.core.feed_handler.bitflyer import BitFlyerSocketClient
+from etr.core.feed_handler.gmo_forex import GmoForexSocketClient
 
 
 if __name__ == '__main__':
     bitbank = BitBankSocketClient(ccy_pairs=["btc_jpy", "xrp_jpy", "eth_jpy", "doge_jpy", "bcc_jpy", "ltc_jpy", "sol_jpy"])
     bitmex = BitmexSocketClient(ccy_pairs=["ETHUSD", "XBTUSD", "XRPUSD", "LTCUSD", "DOGEUSD", "BCHUSD", "SOLUSD"])
     bitflyer = BitFlyerSocketClient(ccy_pairs=["BTC_JPY", "ETH_JPY", "XRP_JPY"])
+    gmo_fx = GmoForexSocketClient()
 
     async def main():
         try:
@@ -15,6 +17,7 @@ if __name__ == '__main__':
                 bitbank.start(),
                 bitmex.start(),
                 bitflyer.start(),
+                gmo_fx.start(),
             )
         except KeyboardInterrupt:
             print("Interrupted by user")
@@ -24,6 +27,7 @@ if __name__ == '__main__':
                 bitbank.close(),
                 bitmex.close(),
                 bitflyer.close(),
+                gmo_fx.close(),
             )
 
     asyncio.run(main())

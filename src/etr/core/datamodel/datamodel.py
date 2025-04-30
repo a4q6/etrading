@@ -20,6 +20,7 @@ class VENUE:
     BINANCE: str = "binance"
     COINCHECK: str = "coincheck"
     BITBANK: str = "bitbank"
+    GMO: str = "gmo"
 
 
 @dataclass
