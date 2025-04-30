@@ -84,6 +84,7 @@ class BitFlyerSocketClient:
                 self.logger.info(f"Send request for '{channel}'")
 
             try:
+                asyncio.create_task(self.heartbeat(websocket))
                 while self._connected and self._running:
                     raw_msg = await websocket.recv()
                     message = json.loads(raw_msg)
@@ -193,7 +194,14 @@ class BitFlyerSocketClient:
                     if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
-
+    async def heartbeat(self, ws, interval=60):
+        while True:
+            if ws.open:
+                self.logger.info(f"(heartbeat) BitFlyer WebSocket is alive")
+            else:
+                self.logger.warning(f"(heartbeat) BitFlyer WebSocket is closed")
+                break
+            await asyncio.sleep(interval)
 
 if __name__ == '__main__':
     client = BitFlyerSocketClient()
