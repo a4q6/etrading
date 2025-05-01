@@ -3,21 +3,24 @@ from etr.core.feed_handler.bitbank import BitBankSocketClient
 from etr.core.feed_handler.bitmex import BitmexSocketClient
 from etr.core.feed_handler.bitflyer import BitFlyerSocketClient
 from etr.core.feed_handler.gmo_forex import GmoForexSocketClient
+from etr.core.feed_handler.gmo_crypt import GmoCryptSocketClient
 
 
 if __name__ == '__main__':
-    bitbank = BitBankSocketClient(ccy_pairs=["btc_jpy", "xrp_jpy", "eth_jpy", "doge_jpy", "bcc_jpy", "ltc_jpy", "sol_jpy"])
-    bitmex = BitmexSocketClient(ccy_pairs=["ETHUSD", "XBTUSD", "XRPUSD", "LTCUSD", "DOGEUSD", "BCHUSD", "SOLUSD"])
+    bitbank = BitBankSocketClient(ccy_pairs=["btc_jpy", "xrp_jpy", "eth_jpy", "doge_jpy", "ltc_jpy", "sol_jpy"])
+    bitmex = BitmexSocketClient(ccy_pairs=["ETHUSD", "XBTUSD", "XRPUSD", "LTCUSD", "DOGEUSD", "SOLUSD", "BTCUSD"])
     bitflyer = BitFlyerSocketClient(ccy_pairs=["BTC_JPY", "ETH_JPY", "XRP_JPY"])
-    gmo_fx = GmoForexSocketClient()
+    gmo_fx = GmoForexSocketClient(ccy_pairs=["USD_JPY", "EUR_USD", "GBP_USD", "AUD_USD", "EUR_JPY", "GBP_JPY", "CHF_JPY", "CAD_JPY", "AUD_JPY"])
+    gmo_cr = GmoCryptSocketClient(ccy_pairs=["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"])
 
     async def main():
         try:
             await asyncio.gather(
+                gmo_fx.start(),
                 bitbank.start(),
                 bitmex.start(),
                 bitflyer.start(),
-                gmo_fx.start(),
+                gmo_cr.start(),
             )
         except KeyboardInterrupt:
             print("Interrupted by user")
@@ -28,6 +31,7 @@ if __name__ == '__main__':
                 bitmex.close(),
                 bitflyer.close(),
                 gmo_fx.close(),
+                gmo_cr.close(),
             )
 
     asyncio.run(main())

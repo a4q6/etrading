@@ -18,7 +18,7 @@ class HdbDumper:
         "BitBankSocketClient": ["Rate", "MarketBook", "MarketTrade", "CircuitBreaker"],
         "BitFlyerSocketClient": ["Rate", "MarketBook", "MarketTrade"],
         "GmoForexSocketClient": ["Rate"],
-        
+        "GmoCryptSocketClient": ["Rate", "MarketBook", "MarketTrade"],
     }
 
     def __init__(self, hdb_dir = Config.HDB_DIR, tp_dir = Config.TP_DIR):
@@ -51,7 +51,7 @@ class HdbDumper:
                 path = self.build_path(table, date, venue, sym)
                 exists_any = exists_any or path.exists()
         if exists_any and skip_if_exists:
-            self.logger.info(f"All the files are ready for '{Path(log_file).name}', skip processing")
+            self.logger.info(f"Files are ready for '{Path(log_file).name}', skip processing")
             return
         
         # Proceed to extraction

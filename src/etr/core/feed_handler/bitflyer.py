@@ -82,6 +82,7 @@ class BitFlyerSocketClient:
                 subscribe_message = {"method": "subscribe", "params": {"channel": channel}}
                 await websocket.send(json.dumps(subscribe_message))
                 self.logger.info(f"Send request for '{channel}'")
+            await asyncio.sleep(1)
 
             try:
                 asyncio.create_task(self.heartbeat(websocket))

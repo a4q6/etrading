@@ -80,7 +80,7 @@ class GmoForexSocketClient:
             for channel in self.channels:
                 subscribe_message = {"command": "subscribe", "channel": "ticker", "symbol": channel}
                 await websocket.send(json.dumps(subscribe_message))
-                self.logger.info(f"Send request for '{channel}'")
+                self.logger.info(f"Send request for '{subscribe_message}'")
                 await asyncio.sleep(2)
 
             try:
@@ -133,8 +133,8 @@ class GmoForexSocketClient:
 
             if self.heatbeat_memo + datetime.timedelta(seconds=60) < data.timestamp:
                 self.heatbeat_memo = data.timestamp
-                last_update = {rate.sym: rate.timestamp.isoformat() for ccypair, rate in self.rate.items()}
-                self.logger.info(f"heartbeat : {last_update}")
+                last_update = "\n".join([f"{rate.sym}\t{rate.timestamp.isoformat()}" for ccypair, rate in self.rate.items()])
+                self.logger.info(f"heartbeat:\n{last_update}")
 
     @staticmethod
     def sleep_offset() -> float:
