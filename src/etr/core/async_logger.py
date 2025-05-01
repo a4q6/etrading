@@ -29,7 +29,7 @@ class AsyncBufferedLogger:
             filename=os.path.join(log_dir, f"{logger_name}.log"),
             utc=True,
             when='midnight',
-            backupCount=100,
+            backupCount=30,
             encoding='utf-8',
         )
         file_handler.setFormatter(formatter)
