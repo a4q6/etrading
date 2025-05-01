@@ -159,7 +159,7 @@ class GmoCryptSocketClient:
                 if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
-            if self.heatbeat_memo + datetime.timedelta(seconds=10) < cur_book.timestamp:
+            if self.heatbeat_memo + datetime.timedelta(seconds=60) < cur_book.timestamp:
                 self.heatbeat_memo = cur_book.timestamp
                 last_update = "¥n".join([f"{book.sym}\t{book.timestamp.isoformat()}" for sym, book in self.market_book.items()])
                 self.logger.info(f"heartbeat:\n{last_update}")
