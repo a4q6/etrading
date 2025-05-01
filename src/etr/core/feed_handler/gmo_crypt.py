@@ -161,7 +161,7 @@ class GmoCryptSocketClient:
 
             if self.heatbeat_memo + datetime.timedelta(seconds=60) < cur_book.timestamp:
                 self.heatbeat_memo = cur_book.timestamp
-                last_update = "¥n".join([f"{book.sym}\t{book.timestamp.isoformat()}" for sym, book in self.market_book.items()])
+                last_update = "\n".join([f"{book.sym}\t{book.timestamp.isoformat()}" for sym, book in self.market_book.items()])
                 self.logger.info(f"heartbeat:\n{last_update}")
 
 
