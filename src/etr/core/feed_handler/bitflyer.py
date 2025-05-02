@@ -166,14 +166,16 @@ class BitFlyerSocketClient:
                 body = message["params"]["message"]  # discard "channel" info
                 # update market book
                 for diff in body["asks"]:
-                    if diff["size"] == 0 and diff["price"] in cur_book.asks.keys():
-                        cur_book.asks.pop(diff["price"])
+                    if diff["size"] == 0:
+                        if diff["price"] in cur_book.asks.keys():
+                            cur_book.asks.pop(diff["price"])
                     else:
                         cur_book.asks[diff["price"]] = diff["size"]
 
                 for diff in body["bids"]:
-                    if diff["size"] == 0 and diff["price"] in cur_book.bids.keys():
-                        cur_book.bids.pop(diff["price"])
+                    if diff["size"] == 0:
+                        if diff["price"] in cur_book.bids.keys():
+                            cur_book.bids.pop(diff["price"])
                     else:
                         cur_book.bids[diff["price"]] = diff["size"]
                 self.market_book[ccypair] = cur_book
