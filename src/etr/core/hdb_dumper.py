@@ -19,6 +19,7 @@ class HdbDumper:
         "BitFlyerSocketClient": ["Rate", "MarketBook", "MarketTrade"],
         "GmoForexSocketClient": ["Rate"],
         "GmoCryptSocketClient": ["Rate", "MarketBook", "MarketTrade"],
+        "CoincheckSocketClient": ["MarketTrade", "Rate", "MarketBook"],
     }
 
     def __init__(self, hdb_dir = Config.HDB_DIR, tp_dir = Config.TP_DIR):
