@@ -13,7 +13,7 @@ logger = LoggerFactory().get_logger(__name__)
 VENUE_TO_TP = {
     "bitmex": ["TP-BitmexSocketClient-{}.log"],
     "gmo": ["TP-GmoForexSocketClient-{}.log", "TP-GmoCryptSocketClient-{}.log"],
-    "bitflyer": ["TP-BitflyerSocketClient-{}.log"],
+    "bitflyer": ["TP-BitFlyerSocketClient-{}.log"],
     "coincheck": ["TP-CoincheckSocketClient-{}.log"],
     "bitbank": ["TP-BitBankSocketClient-{}.log"],
 }
