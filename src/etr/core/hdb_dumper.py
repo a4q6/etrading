@@ -28,6 +28,7 @@ class HdbDumper:
         self.logger = LoggerFactory().get_logger(logger_name=self.__class__.__name__, log_file=Path(Config.LOG_DIR).joinpath("hdb_dumper.log"))
         self.process: Optional[Process] = None
 
+
     def dump_to_hdb(self, log_file: Path, skip_if_exists = True) -> None:
 
         self.logger.info(f"Start extraction for '{Path(log_file).name}'")
@@ -46,12 +47,13 @@ class HdbDumper:
         first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
 
         # check existing files
-        exists_any = False
+        exists_all = True
         for venue, sym in first_records.values:
             for table in self.table_list[logger_name]:
                 path = self.build_path(table, date, venue, sym)
-                exists_any = exists_any or path.exists()
-        if exists_any and skip_if_exists:
+                self.logger.info(f"{path.exists()} -- {path}")
+                exists_all = exists_all and path.exists()
+        if exists_all and skip_if_exists:
             self.logger.info(f"Files are ready for '{Path(log_file).name}', skip processing")
             return
         
@@ -92,6 +94,7 @@ class HdbDumper:
         fname = f"{table}_{venue}_{sym}_{date}.parquet"
         return Path(self.hdb_dir).joinpath(f"{table}/{venue}/{date}/{sym}/{fname}")
 
+
     def list_log_files(self) -> pd.DataFrame:
         # DataFrame[path, fname, logger_name, date]
         files = pd.Series(glob(f"{self.tp_dir}/*.log.*")).to_frame("path")
@@ -100,11 +103,13 @@ class HdbDumper:
         files["date"] = pd.to_datetime(files.fname.str.split(".").str[-1])
         return files
 
+
     def dump_all(self, n_days=10, skip_if_exists=True):
         files = self.list_log_files()
         threshold = pd.Timestamp.today() - pd.Timedelta(f"{n_days}D")
         for file in files.query("@threshold < date").path:
             self.dump_to_hdb(file, skip_if_exists)
+
 
     def start_hdb_loop(
         self,
