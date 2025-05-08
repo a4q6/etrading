@@ -30,7 +30,7 @@ class BitBankSocketClient:
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
         tp_file = Path(Config.TP_DIR)
         self.ticker_plant: Dict[str, AsyncBufferedLogger] = {
-            ccy_pair: AsyncBufferedLogger(logger_name=f"TP-{self.__class__.__name__}-{ccy_pair}", log_dir=tp_file.as_posix())
+            ccy_pair: AsyncBufferedLogger(logger_name=f"TP-{self.__class__.__name__}-{ccy_pair.upper().replace('_', '')}", log_dir=tp_file.as_posix())
             for ccy_pair in ccy_pairs
         }
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)

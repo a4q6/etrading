@@ -8,7 +8,7 @@ import json
 from etr.config import Config
 from etr.common.logger import LoggerFactory
 
-logger = LoggerFactory().get_logger(__file__)
+logger = LoggerFactory().get_logger(__name__)
 
 VENUE_TO_TP = {
     "bitmex": ["TP-BitmexSocketClient-{}.log"],
