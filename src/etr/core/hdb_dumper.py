@@ -45,6 +45,11 @@ class HdbDumper:
                 if i > 100:
                     break
         first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
+        first_records = first_records.dropna()
+        if Path(log_file).name.startswith("TP-GmoCrypt"):  # [NOTE] WA for FH bug found fixed at 2025/05/08
+            first_records["venue"] = "gmo"
+            first_records = first_records.drop_duplicates()
+            self.logger.info("[WA] overwrite venue as 'gmo'")
 
         # check existing files
         exists_all = True
@@ -75,11 +80,14 @@ class HdbDumper:
             df = pd.DataFrame(lines).drop("_data_type", axis=1)
             for col in df.columns[df.columns.str.contains("time")]:
                 df[col] = pd.to_datetime(df[col])
-            if "venue" not in df: df["venue"] = venue  # [NOTE] WORKaround
-            if "sym" not in df: df["sym"] = sym_from_fname  # [NOTE] workd around
+            if "venue" not in df: df["venue"] = venue  # [NOTE] WA for CB table
+            if "sym" not in df: df["sym"] = sym_from_fname  # [NOTE] WA for CB table
+            if table in ["Rate", "MarketBook"] and Path(log_file).name.startswith("TP-GmoCrypt"):
+                # [NOTE] WA for FH bug found fixed at 2025/05/08
+                df["venue"] = "gmo"
             for sym, venue in df[["sym", "venue"]].drop_duplicates().values:
-                self.logger.info(f"Dump '{table}-{venue}-{sym_from_fname}'")  # [NOTE] WorkAround
-                path = self.build_path(table, date, venue, sym)  # [NOTE] Workaround
+                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")  # [NOTE] WA for CB table
+                path = self.build_path(table, date, venue, sym)  # [NOTE] WA for CB table
                 subset = df.query("venue==@venue and sym==@sym")
                 if subset.shape[0] > 0:
                     path.parent.mkdir(parents=True, exist_ok=True)
@@ -101,7 +109,7 @@ class HdbDumper:
         files["fname"] = files.path.str.split("/").str[-1]
         files["logger_name"] = files.fname.str.split("-").str[1]
         files["date"] = pd.to_datetime(files.fname.str.split(".").str[-1])
-        return files
+        return files.sort_values("date").reset_index(drop=True)
 
 
     def dump_all(self, n_days=10, skip_if_exists=True):
@@ -113,12 +121,13 @@ class HdbDumper:
 
     def start_hdb_loop(
         self,
+        n_days=20,
         trigger_time_utc: str = "01:00",
         subprocess: bool = False,
     ):
         def closure():
             while True:
-                self.dump_all()
+                self.dump_all(n_days=n_days)
                 now = pd.Timestamp.today(tz="UTC")
                 next_run = now.ceil("1D").replace(hour=int(trigger_time_utc[:2]), minute=int(trigger_time_utc[3:6]))
                 total_seconds = (next_run - now).total_seconds()
