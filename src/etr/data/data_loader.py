@@ -61,7 +61,7 @@ def load_data(
     # search files
     if isinstance(date, list) and len(date) == 2:
         dates = pd.date_range(*date).strftime("%Y-%m-%d")
-        latest_date = dates[1]
+        latest_date = pd.Timestamp(dates[1])
         files = []
         for ymd in dates:
             files += glob(hdb_dir.joinpath(table).joinpath(venue).joinpath(ymd).joinpath(symbol).joinpath("*.parquet").as_posix())
