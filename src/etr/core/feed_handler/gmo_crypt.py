@@ -51,7 +51,7 @@ class GmoCryptSocketClient:
         self.heatbeat_memo = datetime.datetime.now(datetime.timezone.utc)
         for ccy_pair in ccy_pairs:
             self.channels.append(f"{ccy_pair}")
-            self.market_book[ccy_pair] = MarketBook(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.GMO, category="json-rpc", misc="null")
+            self.market_book[ccy_pair] = MarketBook(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.GMO, category="websocket", misc="null")
             self.rate[ccy_pair] = Rate(sym=ccy_pair.replace("_", "").upper(), venue=VENUE.GMO, category="websocket", timestamp=datetime.datetime.now(datetime.timezone.utc))
             self.last_emit_market_book[ccy_pair] = datetime.datetime(2000, 1, 1, tzinfo=pytz.timezone("UTC"))
 
