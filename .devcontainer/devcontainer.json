@@ -1,0 +1,16 @@
+{
+    "name": "Kaggle Notebook Dev Container",
+    "dockerFile": "Dockerfile",
+    "context": "..",
+    "mounts": [
+      "source=${localWorkspaceFolder}/data,target=/kaggle/input,type=bind",
+      "source=${localEnv:HOME}/.config/kaggle/kaggle.json,target=/root/.config/kaggle/kaggle.json,type=bind"
+    ],
+    "runArgs": [
+      "--gpus", "all",
+      "--publish", "8889:8888",
+      "--env-file", ".devcontainer/.env"
+    ],
+    "initializeCommand": "/bin/bash .devcontainer/scripts/initialize.sh",
+    "postCreateCommand": "/bin/bash .devcontainer/scripts/post-create.sh"
+}
