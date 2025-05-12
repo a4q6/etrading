@@ -80,6 +80,8 @@ class GmoCryptSocketClient:
             for sym in self.channels:
                 for channel in ["orderbooks", "trades"]:
                     subscribe_message = {"command": "subscribe", "channel": channel, "symbol": sym}
+                    if channel == "trades":
+                        subscribe_message["option"] = "TAKER_ONLY"
                     await websocket.send(json.dumps(subscribe_message))
                     self.logger.info(f"Send request for '{subscribe_message}'")
                     await asyncio.sleep(1.5)
