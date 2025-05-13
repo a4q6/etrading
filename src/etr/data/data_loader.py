@@ -32,7 +32,7 @@ def read_log_ticker(
             _data_type = data.get("_data_type")
             if _data_type == data_type:
                 records.append(data)
-    
+
     # convert as table
     data = pd.DataFrame(records).drop("_data_type", axis=1)
     for col in data.columns[data.columns.str.contains("time")]:
@@ -43,10 +43,10 @@ def read_log_ticker(
 
 def load_data(
     date: Union[str, List[str]],
-    table = "MarketTrade",
-    venue = "*",
-    symbol = "BTCJPY",
-    parent_dir = None
+    table: str = "MarketTrade",
+    venue: str = "*",
+    symbol: str = "BTCJPY",
+    parent_dir: Path = None
 ):
     assert table != "*", "wildcard specification for table name is not supported."
 
@@ -87,3 +87,29 @@ def load_data(
     data = pd.concat([data, latest_data])
 
     return data
+
+
+def list_hdb(
+    date: str,
+    parent_dir: Path = None
+) -> pd.DataFrame:
+    # set parent directory
+    if parent_dir is None:
+        parent_dir = Path(__file__).parent.parent.parent.parent
+    else:
+        parent_dir = Path(parent_dir)
+    hdb_dir = parent_dir.joinpath(Config.HDB_DIR)
+
+    ymd = pd.Timestamp(date).strftime("%Y-%m-%d")
+    files = pd.Series([path.as_posix() for path in hdb_dir.glob(f"*/*/{ymd}/*/*.parquet")], name="path")  # table/venue/date/sym/file.parquet
+    if len(files) > 0:
+        partition = files.astype(str).str.split("/")
+        files_df = files.to_frame()
+        files_df["sym"] = partition.str[-2]
+        files_df["date"] = pd.to_datetime(partition.str[-3])
+        files_df["venue"] = partition.str[-4]
+        files_df["table"] = partition.str[-5]
+        files_df = files_df[["table", "venue", "sym", "date", "path"]]
+        return files_df
+    else:
+        return pd.DataFrame()
