@@ -173,8 +173,8 @@ class LSTMTransformerWrapper:
         patience = 0
         best_state = None
 
-        self.model.train()
         for epoch in range(epochs):
+            self.model.train()
             total_loss = 0.0
             for x_batch, y_batch in train_loader:
                 x_batch = x_batch.to(self.device)
@@ -222,6 +222,7 @@ class LSTMTransformerWrapper:
 
         if best_state:
             self.model.load_state_dict(best_state)
+            self.model.train()
 
     def fit_dataframe(self, X_df: pd.DataFrame, y_df: pd.Series,
                       val_split: float = 0.2, **kwargs):
