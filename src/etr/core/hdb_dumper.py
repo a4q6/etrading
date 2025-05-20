@@ -17,12 +17,14 @@ from etr.common.logger import LoggerFactory
 class HdbDumper:
 
     table_list = {
+        # FH Class Name -> _data_type
         "BitmexSocketClient": ["Rate", "MarketBook", "MarketTrade"],
         "BitBankSocketClient": ["Rate", "MarketBook", "MarketTrade", "CircuitBreaker"],
         "BitFlyerSocketClient": ["Rate", "MarketBook", "MarketTrade"],
         "GmoForexSocketClient": ["Rate"],
         "GmoCryptSocketClient": ["Rate", "MarketBook", "MarketTrade"],
         "CoincheckSocketClient": ["MarketTrade", "Rate", "MarketBook"],
+        "BitFlyerFundingRate": ["FundingRate"],
     }
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):

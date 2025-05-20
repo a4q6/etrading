@@ -4,6 +4,8 @@ import json
 import numpy as np
 import datetime
 import pytz
+import aiohttp
+import pandas as pd
 from typing import Callable, Awaitable, Optional, List, Dict
 from sortedcontainers import SortedDict
 from uuid import uuid4
@@ -19,7 +21,7 @@ from etr.common.logger import LoggerFactory
 class BitFlyerSocketClient:
     def __init__(
         self,
-        ccy_pairs: List[str] = ["BTC_JPY"],
+        ccy_pairs: List[str] = ["BTC_JPY", "FX_BTC_JPY"],
         callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
     ):
@@ -205,8 +207,91 @@ class BitFlyerSocketClient:
                 break
             await asyncio.sleep(interval)
 
+class BitFlyerFundingRate:
+
+    ENDPOINT = "https://api.bitflyer.com/v1/"
+
+    def __init__(self, ccy_pairs = ["FX_BTC_JPY"]):
+        self.ccy_pairs = ccy_pairs
+        # logger
+        log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
+        tp_file = Path(Config.TP_DIR)
+        self.ticker_plant: Dict[str, AsyncBufferedLogger] = {
+            ccy_pair: AsyncBufferedLogger(
+                logger_name=f"TP-{self.__class__.__name__}-{ccy_pair.upper().replace('_', '')}", 
+                log_dir=tp_file.as_posix())
+            for ccy_pair in ccy_pairs
+        }
+        self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
+
+        self.latest_data = {ccy_pair: {} for ccy_pair in ccy_pairs}
+
+
+    @staticmethod
+    def get_next_update_time(now: datetime.datetime) -> datetime.datetime:
+        JST = datetime.timezone(datetime.timedelta(hours=9))
+        now_jst = now.astimezone(JST)
+        update_hours = [6, 14, 22]
+        for hour in update_hours:
+            next_time = now_jst.replace(hour=hour, minute=0, second=0, microsecond=0)
+            if now_jst < next_time:
+                return next_time.astimezone(datetime.timezone.utc)
+        # next 6am
+        next_time = now_jst + datetime.timedelta(days=1)
+        next_time = next_time.replace(hour=6, minute=0, second=0, microsecond=0)
+        return next_time.astimezone(datetime.timezone.utc)
+
+
+    async def get_funding_rate(self, ccy_pair: str) -> Dict:
+        data = {}
+        async with aiohttp.ClientSession() as session:
+            params = {"product_code": ccy_pair}
+            self.logger.info(f"Send request funding rate of '{ccy_pair}'")
+            try:
+                async with session.get(self.ENDPOINT + "getfundingrate", params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        data['next_funding_rate_settledate'] = pd.Timestamp(data['next_funding_rate_settledate'], tz="UTC").to_pydatetime().isoformat()
+                        data["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                        data["sym"] = ccy_pair.replace("_", "")
+                        data["venue"] = VENUE.BITFLYER
+                        data["category"] = "REST"
+                        data["_data_type"] = "FundingRate"
+                    else:
+                        self.logger.info(f"Error: HTTP {response.status}")
+            except Exception as e:
+                self.logger.error(f"Exception occurred while fetching funding rate: {e}", exc_info=True)
+        return data
+
+    async def start(self):
+        while True:
+            # try 1min loop until all the funding rate updated
+            updated_flag = {ccypair: False for ccypair in self.ccy_pairs}
+            while True:
+                for ccypair in self.ccy_pairs:
+                    if not updated_flag[ccypair]:
+                        data = await self.get_funding_rate(ccypair)
+                        if self.latest_data[ccypair].get("next_funding_rate_settledate") != data['next_funding_rate_settledate']:
+                            updated_flag[ccypair] = True
+                            self.latest_data[ccypair] = data
+                            asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data)))  # store
+
+                if all(updated_flag.values()):
+                    break
+                else:
+                    self.logger.info(f"Failed to retrieve new data, wait 1min to retry requesting : {updated_flag}")
+                    await asyncio.sleep(60)
+
+            now = datetime.datetime.now(datetime.timezone.utc)
+            next_time = self.get_next_update_time(now)
+            wait_sec = (next_time - now).total_seconds() + 5
+            self.logger.info(f"Next check scheduled at {next_time.strftime('%Y-%m-%d %H:%M')} (in {wait_sec:.0f} seconds)")
+            await asyncio.sleep(wait_sec)
+
+
 if __name__ == '__main__':
-    client = BitFlyerSocketClient()
+    # client = BitFlyerSocketClient()
+    client = BitFlyerFundingRate()
     try:
         asyncio.run(client.start())
     except KeyboardInterrupt:
