@@ -83,7 +83,19 @@ def load_data(
     data = pd.DataFrame()
     if len(files) > 0:
         logger.info(f"Found {len(files)} HDB files, process loading...")
-        data = pd.concat([pd.read_parquet(file) for file in tqdm(files)])
+        fragments = []
+        for file in tqdm(files):
+            df = pd.read_parquet(file)
+            # convert tz as UTC
+            for column in df:
+                if "time" in column:
+                    if hasattr(df[column], "dt"):
+                        if df[column].dt.tz is not None:
+                            df[column] = df[column].dt.tz_convert("UTC")
+                        else:
+                            df[column] = df[column].dt.tz_localize("UTC")
+            fragments.append(df)
+        data = pd.concat(fragments)
     data = pd.concat([data, latest_data])
 
     return data
