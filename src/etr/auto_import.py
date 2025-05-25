@@ -1,4 +1,5 @@
 if "get_ipython" in globals():
+    from IPython import display, HTML
     ipython = get_ipython()
     ipython.run_line_magic("load_ext", "autoreload")
     ipython.run_line_magic("autoreload", "2")
@@ -14,7 +15,7 @@ from glob import glob
 from statsmodels.api import OLS
 from IPython.display import HTML
 from pathlib import Path
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 pd.set_option("display.max_columns", None)
 
@@ -34,3 +35,4 @@ plt.rcParams.update(
 )
 plt.rcParams["figure.figsize"] = (18, 12)
 plt.rcParams["figure.figsize"] = (10, 6)
+full_width_display = "<style>.container { width:80% !important; }</style>"
