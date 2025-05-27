@@ -68,6 +68,7 @@ class Rate:
         data["_data_type"] = self.__class__.__name__
         data["timestamp"] = data["timestamp"].isoformat()
         data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
+        data["mid_price"] = (self.best_ask + self.best_bid) / 2
         data["misc"] = str(data["misc"])
         return data
     
@@ -130,20 +131,9 @@ class MarketBook:
     def latency(self):
         return (self.timestamp - self.market_created_timestamp).total_seconds()
 
-class MarketData:
-    def __init__(self, venue: str, category: str, sym: str):
-        self.trade = MarketTrade()
-        self.book = MarketBook()
-        self.rate = Rate()
-        for obj in [self.trade, self.book, self.rate]:
-            obj.sym = sym
-            obj.venue = venue
-            obj.category = category
-
 @dataclass
 class Order:
     timestamp: datetime.datetime
-    received_timestamp: datetime.datetime
     market_created_timestamp: datetime.datetime
     sym: str
     side: int
@@ -156,29 +146,20 @@ class Order:
     order_id: str = None
     model_id: str = None
     process_id: str = None
-    source_type: str = None
-    source_id: str = None
+    src_type: str = None
+    src_id: str = None
+    src_received_timestamp: datetime.datetime = None
     misc: str = None
-    sourcereceived_timestamp: datetime.datetime = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
-    
-    @staticmethod
-    def null_order():
-        return Order(
-            timestamp = datetime.datetime(1990, 1, 1),
-            received_timestamp = datetime.datetime(1990, 1, 1),
-            market_created_timestamp = datetime.datetime(1990, 1, 1),
-            sym = "",
-            side = 0,
-            price = 0,
-            amount = 0,
-            executed_amount = 0,
-            order_type = "",
-            order_status = OrderStatus.Null,
-            order_id="",
-            venue = "",
-            misc = ""
-        )
+
+    def to_dict(self) -> Dict:
+        data = asdict(self)
+        data["_data_type"] = self.__class__.__name__
+        data["timestamp"] = data["timestamp"].isoformat()
+        data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
+        data["src_received_timestamp"] = data["market_created_timestamp"].isoformat()
+        return data
+
     
 @dataclass
 class OrderType:

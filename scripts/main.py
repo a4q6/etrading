@@ -5,6 +5,7 @@ from etr.core.feed_handler.bitflyer import BitFlyerSocketClient, BitFlyerFunding
 from etr.core.feed_handler.gmo_forex import GmoForexSocketClient
 from etr.core.feed_handler.gmo_crypt import GmoCryptSocketClient
 from etr.core.feed_handler.coincheck import CoincheckSocketClient
+from etr.core.feed_handler.binance import BinanceSocketClient
 
 
 if __name__ == '__main__':
@@ -15,6 +16,7 @@ if __name__ == '__main__':
     gmo_fx = GmoForexSocketClient(ccy_pairs=["USD_JPY", "EUR_USD", "GBP_USD", "AUD_USD", "EUR_JPY", "GBP_JPY", "CHF_JPY", "CAD_JPY", "AUD_JPY"])
     gmo_cr = GmoCryptSocketClient(ccy_pairs=["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"])
     coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"])
+    binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"])
 
     async def main():
         try:
@@ -26,6 +28,7 @@ if __name__ == '__main__':
                 gmo_cr.start(),
                 coincheck.start(),
                 bitflyer_fr.start(),
+                binance.start(),
             )
         except KeyboardInterrupt:
             print("Interrupted by user")
@@ -38,6 +41,7 @@ if __name__ == '__main__':
                 gmo_fx.close(),
                 gmo_cr.close(),
                 coincheck.close(),
+                binance.close(),
             )
 
     asyncio.run(main())
