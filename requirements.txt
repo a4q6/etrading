@@ -5,3 +5,5 @@ tabulate
 ta
 arch
 tensorflow
+hmac
+hashlib

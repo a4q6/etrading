@@ -26,6 +26,7 @@ class HdbDumper:
         "CoincheckSocketClient": ["MarketTrade", "Rate", "MarketBook"],
         "BitFlyerFundingRate": ["FundingRate"],
         "BinanceSocketClient": ["Rate", "MarketTrade"],
+        "BinanceRestEoption": ["ImpliedVolatility"],
     }
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):
