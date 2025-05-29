@@ -104,7 +104,7 @@ class BinanceRestEoption:
                         asyncio.create_task(self.ticker_plant[record["sym"]].info(json.dumps(record))) # store
                     now = pd.Timestamp.now(tz="UTC")
                     next_time = now.ceil(f"{self.polling_interval}s")
-                    sleep_duration = (next_time - now).total_seconds() - 0.5
+                    sleep_duration = (next_time - now).total_seconds()
                 else:
                     sleep_duration = 1
 
