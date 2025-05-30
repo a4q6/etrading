@@ -8,3 +8,4 @@ class Config:
     LOG_DIR = os.getenv("LOG_DIR", "./logs")
     TP_DIR = os.getenv("TP_DIR", "./data/tp")
     HDB_DIR = os.getenv("HDB_DIR", "./data/hdb")
+    DISCORD_URL_TEST = os.getenv("DISCORD_URL_TEST")
