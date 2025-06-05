@@ -111,7 +111,7 @@ def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFram
     trades_df["id"] = np.arange(trades_df.shape[0])
     trades_df["sided_amount"] = trades_df[["amount", "side"]].prod(axis=1)
     assert all(trades_df[["venue", "sym", "model_id", "process_id"]].nunique() <= 1),\
-        f"Non-unique columns exists: {trades_df[['venue', 'sym', 'model_id', 'process_id']].nunique()}. check the #unique value."
+        f"This function must be applied to unique (model, sym, venue): {trades_df[['venue', 'sym', 'model_id', 'process_id']].nunique()}. check the #unique value."
 
     # [main] get matching
     res = _fifo_transaction_matching(trades_df[["sided_amount", "price", "id"]].values)
@@ -148,7 +148,7 @@ def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFram
     tab = tab[[
         "rinc_timestamp", "rdec_timestamp", "sym", "side", "rinc_price", "rdec_price", "pl_bp", "amount", "pl", "horizon", 
         "pos_before_rinc", "pos_before_rdec", "rinc_order_type", "rdec_order_type", "rinc_order_id", "rdec_order_id", "rinc_trade_id", "rdec_trade_id"
-    ]]
+    ]].rename({"rinc_timestamp": "timestamp"}, axis=1)
     
     # attach attrs
     tab.attrs = {"venue": trades_df.venue.iloc[0], "model_id": trades_df.model_id.iloc[0], "process_id": trades_df.process_id.iloc[0]}
