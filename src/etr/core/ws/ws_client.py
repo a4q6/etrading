@@ -12,11 +12,13 @@ from etr.config import Config
 class LocalWsClient:
     def __init__(
         self,
-        uri: str,
+        uri: str = "ws://localhost:8765",
         callbacks: List[Awaitable[None]] = [],
+        log_file = None,
         reconnect: bool = True,
     ):
-        log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
+        if log_file is not None:
+            log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
         self.logger = LoggerFactory().get_logger(logger_name=__name__, log_file=log_file)
         self.uri = uri
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
