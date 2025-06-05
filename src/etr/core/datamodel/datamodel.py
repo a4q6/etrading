@@ -38,12 +38,13 @@ class MarketTrade:
     misc: str = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
 
-    def to_dict(self):
+    def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
-        data["timestamp"] = data["timestamp"].isoformat()
-        data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         data["misc"] = str(data["misc"])
+        if to_string_timestamp:
+            data["timestamp"] = data["timestamp"].isoformat()
+            data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
     
     @property
@@ -63,13 +64,14 @@ class Rate:
     misc: str = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
 
-    def to_dict(self):
+    def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
-        data["timestamp"] = data["timestamp"].isoformat()
-        data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         data["mid_price"] = (self.best_ask + self.best_bid) / 2
         data["misc"] = str(data["misc"])
+        if to_string_timestamp:
+            data["timestamp"] = data["timestamp"].isoformat()
+            data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
     
     @property
@@ -92,14 +94,16 @@ class MarketBook:
     universal_id: str = field(default_factory=lambda : uuid4().hex)
     misc: str = None
 
-    def to_dict(self, level=20):
+    def to_dict(self, level=20, to_string_timestamp=True):
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
-        data["timestamp"] = data["timestamp"].isoformat()
-        data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         data["bids"] = list(data["bids"].items())[-level:][::-1]
         data["asks"] = list(data["asks"].items())[:level]
         data["misc"] = str(data["misc"])
+        if to_string_timestamp:
+            data["timestamp"] = data["timestamp"].isoformat()
+            data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
+
         return data
     
     def to_rate(self) -> Rate:
@@ -152,13 +156,30 @@ class Order:
     misc: str = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self, to_string_timestamp=True) -> Dict:
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
-        data["timestamp"] = data["timestamp"].isoformat()
-        data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
-        data["src_received_timestamp"] = data["market_created_timestamp"].isoformat()
+        if to_string_timestamp:
+            data["timestamp"] = data["timestamp"].isoformat()
+            data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
+            data["src_received_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
+
+    @staticmethod
+    def null_order() -> 'Order':
+        return Order(
+            timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
+            market_created_timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
+            sym="",
+            side=0,
+            price=np.nan,
+            amount=np.nan,
+            executed_amount=0,
+            order_type="",
+            order_status=OrderStatus.Canceled,
+            venue="",
+            universal_id="",
+        )
 
     
 @dataclass
@@ -226,28 +247,39 @@ class Trade:
     timestamp: datetime.datetime
     market_created_timestamp: datetime.datetime
     sym: str
+    venue: str
+    side: int
     price: float
     amount: float  # > 0
-    side: int
     order_id: str
-    orderuniversal_id: str
     order_type: str
-    venue: str
     trade_id: str = None
     model_id: str = None
     process_id: str = None
     universal_id: str = None
     misc: str = None
-    
-    def to_pos_ndarray(self) -> np.ndarray:
-        return np.array([abs(self.amount) * self.side, self.price])
 
+    def to_dict(self, to_string_timestamp=True) -> Dict:
+        data = asdict(self)
+        data["_data_type"] = self.__class__.__name__
+        if to_string_timestamp:
+            data["timestamp"] = data["timestamp"].isoformat()
+            data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
+        return data
 
-@dataclass
-class Data:
-    MarketTrade: str = MarketTrade.__name__
-    MarketBook: str = MarketBook.__name__
-    Rate: str = Rate.__name__
-    Order: str = Order.__name__
-    Position: str = Position.__name__
-    Trade: str = Trade.__name__
+    @staticmethod
+    def from_order(
+        timestamp,
+        market_created_timestamp,
+        trade_id,
+        price,
+        exec_amount: float,
+        order: Order,
+        misc="",
+    ) ->  'Trade':
+        return Trade(
+            timestamp, market_created_timestamp,
+            sym=order.sym, venue=order.venue, side=order.side, price=price, amount=exec_amount,
+            order_id=order.order_id, order_type=order.order_type, trade_id=trade_id, model_id=order.model_id, 
+            process_id=order.process_id, universal_id=uuid4().hex, misc=misc,
+        )

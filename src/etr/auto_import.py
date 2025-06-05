@@ -15,7 +15,7 @@ from glob import glob
 from statsmodels.api import OLS
 from IPython.display import HTML
 from pathlib import Path
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 pd.set_option("display.max_columns", None)
 
