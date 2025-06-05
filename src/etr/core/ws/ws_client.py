@@ -9,14 +9,14 @@ from etr.common.logger import LoggerFactory
 from etr.config import Config
 
 
-class WsPublisherClient:
+class LocalWsClient:
     def __init__(
         self,
         uri: str,
         callbacks: List[Awaitable[None]] = [],
         reconnect: bool = True,
     ):
-        log_file = Path(Config.LOG_DIR).joinpath("main2.log").as_posix()
+        log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
         self.logger = LoggerFactory().get_logger(logger_name=__name__, log_file=log_file)
         self.uri = uri
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
@@ -135,11 +135,12 @@ class WsPublisherClient:
 
 
 if __name__ == '__main__':
+    import datetime
     async def async_callback(msg: Dict):
-        print("Async callback got:", msg)
+        print(f"{datetime.datetime.now()} || Async callback got:", msg)
 
     async def main():
-        client = WsPublisherClient(uri="ws://localhost:8765")
+        client = LocalWsClient(uri="ws://localhost:8765")
         client.register_callback(async_callback)
         await client.connect()
 

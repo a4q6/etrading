@@ -9,12 +9,12 @@ from etr.config import Config
 from etr.common.logger import LoggerFactory
 
 
-class WebsocketPublisher:
+class LocalWsPublisher:
     _instance = None
 
     def __new__(cls, port: int):
         if cls._instance is None:
-            cls._instance = super(WebsocketPublisher, cls).__new__(cls)
+            cls._instance = super(LocalWsPublisher, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
@@ -32,7 +32,7 @@ class WebsocketPublisher:
 
     async def start(self):
         self._server = await websockets.serve(self._handler, "localhost", self.port)
-        self.logger.info(f"WebsocketPublisher running on port {self.port}")
+        self.logger.info(f"LocalWsPublisher running on port {self.port}")
 
     async def _handler(self, websocket: websockets.WebSocketServerProtocol):
         client_id = uuid.uuid4().hex
@@ -112,8 +112,8 @@ class WebsocketPublisher:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
-        WebsocketPublisher._instance = None
-        self.logger.info(f"WebsocketPublisher on port {self.port} closed.")
+        LocalWsPublisher._instance = None
+        self.logger.info(f"LocalWsPublisher on port {self.port} closed.")
 
     def __del__(self):
         try:
@@ -123,7 +123,7 @@ class WebsocketPublisher:
 
 if __name__ == '__main__':
 
-    publisher = WebsocketPublisher(port=8765)
+    publisher = LocalWsPublisher(port=8765)
     
     async def data_producer():
         """一定間隔でPublisherにデータを送信する例"""
