@@ -50,6 +50,7 @@ class BacktestClient(ExchangeClientBase):
         src_type: str,
         src_timestamp: datetime.datetime,
         src_id=None,
+        misc=None,
         **kwargs
     ) -> Order:
         order_info = Order(
@@ -68,6 +69,7 @@ class BacktestClient(ExchangeClientBase):
             src_type=src_type,
             src_id=src_id,
             src_received_timestamp=src_timestamp,
+            misc=misc,
         )
         order_info.order_id = order_info.universal_id
         if order_type == OrderType.Market:
@@ -85,6 +87,7 @@ class BacktestClient(ExchangeClientBase):
         src_type,
         src_timestamp,
         src_id=None,
+        misc=None,
         **kwargs
     ) -> Order:
         oinfo = self.open_limit_orders.pop(order_id)
@@ -93,6 +96,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo.src_received_timestamp = src_timestamp
         oinfo.src_id = src_id
         oinfo.order_status = OrderStatus.Canceled
+        oinfo.misc = misc
         self.cancel_order_message[oinfo.order_id] = deepcopy(oinfo)
         return oinfo
 
@@ -105,6 +109,7 @@ class BacktestClient(ExchangeClientBase):
         amount,
         src_type,
         src_id=None,
+        misc=None,
         **kwargs
     ) -> Order:
         oinfo = self.open_limit_orders[order_id]
@@ -114,6 +119,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo.src_type = src_type
         oinfo.src_received_timestamp = timestamp
         oinfo.src_id = src_id
+        oinfo.misc = misc
         self.amend_order_message[oinfo.order_id] = deepcopy(oinfo)
         return oinfo
 
@@ -136,6 +142,7 @@ class BacktestClient(ExchangeClientBase):
                         o.order_status = OrderStatus.Filled
                         o.price = msg["best_bid"] if o.side < 0 else msg["best_ask"]
                         o.executed_amount = o.amount
+                        o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
                         self.filled_orders_message[oid] = deepcopy(o)
                         t = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"], price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
                         self.update_position(t)
@@ -151,9 +158,10 @@ class BacktestClient(ExchangeClientBase):
                 filled_ids = []
                 for oid, o in self.open_limit_orders.items():
                     if o.sym == sym:
-                        if (o.side * msg["side"] > 0) and ((msg["price"] - o.price) * o.side >= 0):
+                        if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):
                             o.executed_amount = o.amount
                             o.order_status = OrderStatus.Filled
+                            o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
                             self.filled_orders_message[oid] = deepcopy(o)
                             t: Trade = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"], 
                                                         price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
