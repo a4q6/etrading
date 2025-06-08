@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Union, List, Dict, Callable, Set, Optional
 
 from etr.common.logger import LoggerFactory
+from etr.strategy.base_strategy import StrategyBase
 from etr.config import Config
 from etr.core.async_logger import AsyncBufferedLogger
 from etr.core.api_client.api_counter import ApiCounter
@@ -36,20 +37,17 @@ class ExchangeClientBase(ABC):
         )
         log_file = Path(Config.LOG_DIR).joinpath(f"{log_name}").as_posix()
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=None if log_name is None else log_file)
-
-        self.open_limit_orders: Dict[str, Order] = {}
-        self.open_stop_orders: Dict[str, Order] = {}
-        self.open_market_orders: Dict[str, Order] = {}
-        self.closed_orders = {}
         self.closed_pnl = 0
         self.open_pnl = {}
         self.positions = {}  # {sym: (amount, vwap)}
-        self.transactions: List[Trade] = []
+        self.strategy: StrategyBase = None
+
+    def register_strategy(self, strategy: StrategyBase):
+        self.strategy = strategy
 
     @abstractmethod
     async def send_order(
         self,
-        strategy,
         timestamp: datetime.datetime,
         sym: str,
         side: int,
@@ -66,7 +64,6 @@ class ExchangeClientBase(ABC):
     @abstractmethod
     async def amend_order(
         self,
-        strategy,
         timestamp: datetime.datetime,
         order_id: str,
         price: float,
@@ -82,7 +79,6 @@ class ExchangeClientBase(ABC):
     @abstractmethod
     async def cancel_order(
         self,
-        strategy, 
         order_id: str, 
         timestamp: datetime.datetime, 
         src_type: str,
@@ -99,6 +95,34 @@ class ExchangeClientBase(ABC):
     ) -> Order:
         pass
 
-    @abstractmethod
-    async def update_open_pnl(self, rate: Rate):
-        pass
+    def update_open_pnl(self, rate: Rate) -> None:
+        if rate.sym in self.positions:
+            ref_price = rate.mid_price
+            self.open_pnl[rate.sym] = (ref_price - self.positions[rate.sym][0]) * self.positions[rate.sym][1]
+
+    def update_position(self, trade: Trade) -> None:
+        sym = trade.sym
+        if not sym in self.positions or self.positions[sym][1] == 0:
+            # New
+            self.positions[sym] = [trade.price, trade.amount * trade.side]
+        else:
+            exec_amount = (trade.amount * trade.side)
+            cur_size = self.positions[sym][1]
+            new_size = cur_size + exec_amount
+            if round(new_size, 7) == 0:
+                # close
+                self.closed_pnl += trade.side * (trade.price - self.positions[sym][0]) * trade.amount
+                self.positions[sym] = [np.nan, 0]
+            elif exec_amount * cur_size > 0:
+                # same side
+                self.positions[sym] = [(trade.price * exec_amount) + (self.positions[sym][0] * cur_size) / new_size, new_size]
+            elif new_size * cur_size < 0:
+                # flip
+                self.closed_pnl += cur_size * (trade.price - self.positions[sym][0])
+                self.positions[sym] = [trade.price, new_size]
+            elif cur_size * exec_amount < 0 and new_size * cur_size > 0:
+                # partial close
+                self.closed_pnl += trade.side * (trade.price - self.positions[sym][0]) * trade.amount
+                self.positions[sym][1] = new_size
+            else:
+                raise ValueError()

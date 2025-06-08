@@ -94,7 +94,7 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for entry {misc} ...")
                             config["entry_order"] = "sending"
                             config["entry_order"] = await self.client.send_order(
-                                self, timestamp=msg["timestamp"], sym=config["sym"], side=config["side"], price=msg["mid_price"], amount=config["amount"],
+                                timestamp=msg["timestamp"], sym=config["sym"], side=config["side"], price=msg["mid_price"], amount=config["amount"],
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"entry {misc}"
                             )
 
@@ -104,7 +104,7 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for SL {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                self, timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"sl {misc}"
                             )
 
@@ -114,7 +114,7 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for exit {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                self, timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"exit {misc}"
                             )
 

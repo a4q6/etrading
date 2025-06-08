@@ -40,7 +40,6 @@ class BacktestClient(ExchangeClientBase):
 
     async def send_order(
         self,
-        strategy: StrategyBase,
         timestamp: datetime.datetime,
         sym: str,
         side: int,
@@ -64,8 +63,8 @@ class BacktestClient(ExchangeClientBase):
             order_type=order_type,
             order_status=OrderStatus.New,
             venue=self.venue,
-            model_id=strategy.model_id,
-            process_id=strategy.process_id,
+            model_id=self.strategy.model_id,
+            process_id=self.strategy.process_id,
             src_type=src_type,
             src_id=src_id,
             src_timestamp=src_timestamp,
@@ -81,7 +80,6 @@ class BacktestClient(ExchangeClientBase):
 
     async def cancel_order(
         self,
-        strategy: StrategyBase,
         order_id,
         timestamp,
         src_type,
@@ -102,7 +100,6 @@ class BacktestClient(ExchangeClientBase):
 
     async def amend_order(
         self,
-        strategy: StrategyBase,
         timestamp,
         order_id,
         price,
