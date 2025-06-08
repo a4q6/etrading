@@ -68,7 +68,7 @@ class BacktestClient(ExchangeClientBase):
             process_id=strategy.process_id,
             src_type=src_type,
             src_id=src_id,
-            src_received_timestamp=src_timestamp,
+            src_timestamp=src_timestamp,
             misc=misc,
         )
         order_info.order_id = order_info.universal_id
@@ -93,7 +93,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo = self.open_limit_orders.pop(order_id)
         oinfo.timestamp = timestamp
         oinfo.src_type = src_type
-        oinfo.src_received_timestamp = src_timestamp
+        oinfo.src_timestamp = src_timestamp
         oinfo.src_id = src_id
         oinfo.order_status = OrderStatus.Canceled
         oinfo.misc = misc
@@ -117,7 +117,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo.price = price
         oinfo.amount = amount
         oinfo.src_type = src_type
-        oinfo.src_received_timestamp = timestamp
+        oinfo.src_timestamp = timestamp
         oinfo.src_id = src_id
         oinfo.misc = misc
         self.amend_order_message[oinfo.order_id] = deepcopy(oinfo)

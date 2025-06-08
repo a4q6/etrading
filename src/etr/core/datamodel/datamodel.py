@@ -152,7 +152,7 @@ class Order:
     process_id: str = None
     src_type: str = None
     src_id: str = None
-    src_received_timestamp: datetime.datetime = None
+    src_timestamp: datetime.datetime = None
     misc: str = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
 
@@ -162,7 +162,7 @@ class Order:
         if to_string_timestamp:
             data["timestamp"] = data["timestamp"].isoformat()
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
-            data["src_received_timestamp"] = data["market_created_timestamp"].isoformat()
+            data["src_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
 
     @staticmethod
