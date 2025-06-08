@@ -9,3 +9,6 @@ class Config:
     TP_DIR = os.getenv("TP_DIR", "./data/tp")
     HDB_DIR = os.getenv("HDB_DIR", "./data/hdb")
     DISCORD_URL_TEST = os.getenv("DISCORD_URL_TEST")
+
+    COINCHECK_API_KEY = os.getenv("COINCHECK_API_KEY")
+    COINCHECK_API_SECRET = os.getenv("COINCHECK_API_SECRET")
