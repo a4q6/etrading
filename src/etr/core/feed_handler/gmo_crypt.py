@@ -15,17 +15,18 @@ from etr.core.async_logger import AsyncBufferedLogger
 from etr.config import Config
 from etr.core.datamodel import MarketBook, MarketTrade, Rate, VENUE
 from etr.common.logger import LoggerFactory
+from etr.core.ws import LocalWsPublisher
 
 
 class GmoCryptSocketClient:
     def __init__(
         self,
         ccy_pairs: List[str] = ["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         self.ws_url = "wss://api.coin.z.com/ws/public/v1"
-        self.callbacks = callbacks
+        self.publisher = publisher
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -131,7 +132,7 @@ class GmoCryptSocketClient:
                 price=float(message["price"]),
                 amount=float(message["size"]),
             )
-            if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(data) for callback in self.callbacks]))  # send(wo-awaiting)
+            if self.publisher is not None: await self.publisher.send(data.to_dict())
             asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
         if message["channel"] == "orderbooks":
@@ -149,7 +150,7 @@ class GmoCryptSocketClient:
             self.market_book[ccypair] = cur_book
 
             # distribute
-            if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
+            if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
             if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                 self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -158,7 +159,7 @@ class GmoCryptSocketClient:
             new_rate = self.market_book[ccypair].to_rate()
             if self.rate[ccypair].mid_price != new_rate.mid_price:
                 self.rate[ccypair] = new_rate
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
+                if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
             if self.heatbeat_memo + datetime.timedelta(seconds=60) < cur_book.timestamp:

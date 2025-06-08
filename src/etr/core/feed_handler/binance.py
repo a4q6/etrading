@@ -14,6 +14,7 @@ from etr.common.logger import LoggerFactory
 from etr.core.async_logger import AsyncBufferedLogger
 from etr.core.datamodel import MarketTrade, MarketBook, Rate, VENUE
 from etr.config import Config
+from etr.core.ws import LocalWsPublisher
 
 
 class BinanceSocketClient:
@@ -24,12 +25,12 @@ class BinanceSocketClient:
     def __init__(
         self,
         ccy_pairs: List[str] = ["BTCUSDT"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         # "wss://stream.binance.com:9443/stream?streams=btcusdt@aggTrade/btcusdt@bookTicker"
         self.ws_url = 'wss://stream.binance.com:9443/stream?streams='
-        self.callbacks = callbacks
+        self.publisher = publisher
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -138,7 +139,7 @@ class BinanceSocketClient:
                 self.rate[sym].mid_price = (best_bid + best_ask) / 2
                 self.rate[sym].misc = "spot"
                 new_rate = deepcopy(self.rate[sym])
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
+                if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
                 asyncio.create_task(self.ticker_plant[sym].info(json.dumps(new_rate.to_dict())))  # store
 
         elif "aggTrade" in message["stream"]:
@@ -171,7 +172,7 @@ class BinanceSocketClient:
                 order_ids = f"{message['f']}_{message['l']}",
                 misc = "spot",
             )
-            if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(data) for callback in self.callbacks]))  # send(wo-awaiting)
+            if self.publisher is not None: await self.publisher.send(data.to_dict())
             asyncio.create_task(self.ticker_plant[sym].info(json.dumps(data.to_dict()))) # store
 
 

@@ -14,17 +14,17 @@ from etr.core.async_logger import AsyncBufferedLogger
 from etr.config import Config
 from etr.core.datamodel import MarketBook, MarketTrade, Rate, VENUE
 from etr.common.logger import LoggerFactory
+from etr.core.ws import LocalWsPublisher
 
 
 class BitBankSocketClient:
     def __init__(
         self,
         ccy_pairs: List[str] = ["btc_jpy"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         self.ws_url = "wss://stream.bitbank.cc/socket.io/?EIO=4&transport=websocket"
-        self.callbacks = callbacks
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -34,6 +34,7 @@ class BitBankSocketClient:
             for ccy_pair in ccy_pairs
         }
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
+        self.publisher = publisher
         
         # status flags
         self._ws = None
@@ -148,7 +149,7 @@ class BitBankSocketClient:
                     amount=float(trs["amount"]),
                     trade_id=str(trs["transaction_id"]),
                 )
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(data) for callback in self.callbacks]))  # send(wo-awaiting)
+                if self.publisher is not None: await self.publisher.send(data.to_dict())
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
         elif body["room_name"].startswith("depth_whole"):
@@ -184,7 +185,7 @@ class BitBankSocketClient:
             self.market_book[ccypair] = deepcopy(cur_book)
             
             # distribute
-            if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
+            if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
             asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
 
         elif body["room_name"].startswith("depth_diff"):
@@ -215,7 +216,7 @@ class BitBankSocketClient:
                 self.market_book[ccypair] = deepcopy(cur_book)
 
                 # distribute
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
+                if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
                 if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                     self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -236,13 +237,20 @@ class BitBankSocketClient:
                 new_rate = cur_book.to_rate()
                 if self.rate[ccypair].mid_price != new_rate.mid_price:
                     self.rate[ccypair] = new_rate
-                    if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
+                    if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
 if __name__ == '__main__':
-    client = BitBankSocketClient()
-    try:
-        asyncio.run(client.start())
-    except KeyboardInterrupt:
-        print("Disconnected")
-        asyncio.run(client.close())
+    async def main():
+        publisher = LocalWsPublisher(port=8765)
+        client = BitBankSocketClient(publisher=publisher)
+        try:
+            await asyncio.gather(
+                publisher.start(),
+                client.start(),
+            )
+        except KeyboardInterrupt:
+            print("Disconnected")
+            asyncio.run(client.close())
+    
+    asyncio.run(main())

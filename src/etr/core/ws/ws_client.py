@@ -1,7 +1,7 @@
 import asyncio
 import json
 import websockets
-import inspect
+import pandas as pd
 from typing import Callable, List, Dict, Optional, Union, Set, FrozenSet, Awaitable
 from pathlib import Path
 
@@ -112,6 +112,7 @@ class LocalWsClient:
             async for message in self.websocket:
                 try:
                     data = json.loads(message)
+                    data = {k: v if "time" not in k else pd.Timestamp(v) for k, v in data.items()}  # parse timestamp values
                     for callback in self.callbacks:
                         await callback(data)
                 except json.JSONDecodeError:
@@ -147,7 +148,11 @@ if __name__ == '__main__':
         await client.connect()
 
         await asyncio.sleep(2)
-        await client.subscribe([{"_data_type": "MarketBook", "venue": "binance", "sym": "*"}])
+        await client.subscribe([
+            {"_data_type": "MarketTrade", "venue": "binance", "sym": "BTCUSDT"},
+            {"_data_type": "MarketTrade", "venue": "bitflyer", "sym": "FXBTCJPY"},
+            {"_data_type": "Rate", "venue": "gmo", "sym": "USDJPY"},
+        ])
 
         await asyncio.sleep(30)
         await client.close()

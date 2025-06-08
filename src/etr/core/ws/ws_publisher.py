@@ -12,7 +12,7 @@ from etr.common.logger import LoggerFactory
 class LocalWsPublisher:
     _instance = None
 
-    def __new__(cls, port: int):
+    def __new__(cls, port):
         if cls._instance is None:
             cls._instance = super(LocalWsPublisher, cls).__new__(cls)
             cls._instance._initialized = False
@@ -47,7 +47,7 @@ class LocalWsPublisher:
             await websocket.close()
             return
 
-        self.logger.info(f"Client {client_id} connected.")
+        self.logger.info(f"Local websocket ClientID = {client_id} connected.")
 
         try:
             async for message in websocket:
@@ -95,7 +95,7 @@ class LocalWsPublisher:
     async def _remove_client(self, websocket: websockets.WebSocketServerProtocol):
         client_id = self._client_ids.pop(websocket, None)
         if client_id:
-            self.logger.info(f"Client {client_id} disconnected")
+            self.logger.info(f"Local websocket ClientID = {client_id} disconnected")
             self._clients.pop(client_id, None)
             self._subscriptions.pop(client_id, None)
         try:
@@ -120,6 +120,7 @@ class LocalWsPublisher:
             asyncio.create_task(self.close())
         except Exception:
             pass
+
 
 if __name__ == '__main__':
 

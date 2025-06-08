@@ -12,6 +12,7 @@ from etr.common.utils import camel_to_snake
 from etr.common.logger import LoggerFactory
 from etr.core.async_logger import AsyncBufferedLogger
 from etr.config import Config
+from etr.core.ws import LocalWsPublisher
 
 
 class BinanceRestEoption:
@@ -22,13 +23,12 @@ class BinanceRestEoption:
     def __init__(
         self,
         ccy_pairs: List[str] = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         polling_interval = 60,
-        reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         self.polling_interval = polling_interval
         self.ccy_pairs = ccy_pairs
-        self.callbacks = callbacks
+        self.publisher = publisher
         self._running = True
 
         # logger
@@ -96,7 +96,20 @@ class BinanceRestEoption:
                 if len(spot) > 0 and len(iv) > 0:
                     iv["spot"] = pd.Series(spot).reindex(iv.sym).values
                     iv["_data_type"] = "ImpliedVolatility"
-                    if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(iv) for callback in self.callbacks]))  # send(wo-awaiting)
+
+                    # publish
+                    for key, group in iv.groupby(["_data_type", "sym", "venue"]):
+                        for col in group.columns[group.columns.str.contains("time")]:
+                            group[col] = group[col].astype(str)
+                        records = {
+                            "_data_type": key[0],
+                            "sym": key[1],
+                            "venue": key[2],
+                            "records": group.to_dict(orient="records"),
+                        }
+                        if self.publisher is not None: await self.publisher.send(records)
+
+                    # write to TP
                     d = iv.to_dict(orient="records")
                     for record in d:
                         record["timestamp"] = record["timestamp"].isoformat()

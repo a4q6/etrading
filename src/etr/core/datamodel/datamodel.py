@@ -162,7 +162,7 @@ class Order:
         if to_string_timestamp:
             data["timestamp"] = data["timestamp"].isoformat()
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
-            data["src_timestamp"] = data["market_created_timestamp"].isoformat()
+            data["src_timestamp"] = data["src_timestamp"].isoformat()
         return data
 
     @staticmethod
@@ -203,7 +203,7 @@ class OrderStatus:
     Partial = "partial"
     Canceled = "canceled"
     Filled = "filled"
-    Pending = "pending"
+    Sent = "sent"
     
     @staticmethod
     def convert(res: str = None, order = None) -> str:
@@ -220,26 +220,26 @@ class OrderStatus:
         else:
             raise ValueError(f"`{res}` passed")
 
-@dataclass
-class Position:
-    timestamp: datetime.datetime
-    market_created_timestamp: datetime.datetime
-    sym: str
-    model_id: str
-    process_id: str
-    venue: str
-    amount: float  # -inf ~ +inf
-    cost: str
-    pnl_closed: float = 0
-    pnl_open: float = np.nan
-    universal_id: str = None
-    lastTrade_id: str = None
-    @property
-    def side(self):
-        return np.sign(self.amount)
-    @property
-    def pnl_price(self):
-        return self.pnl_open / abs(self.amount)
+# @dataclass
+# class Position:
+#     timestamp: datetime.datetime
+#     market_created_timestamp: datetime.datetime
+#     sym: str
+#     model_id: str
+#     process_id: str
+#     venue: str
+#     amount: float  # -inf ~ +inf
+#     cost: str
+#     pnl_closed: float = 0
+#     pnl_open: float = np.nan
+#     universal_id: str = None
+#     lastTrade_id: str = None
+#     @property
+#     def side(self):
+#         return np.sign(self.amount)
+#     @property
+#     def pnl_price(self):
+#         return self.pnl_open / abs(self.amount)
 
 
 @dataclass

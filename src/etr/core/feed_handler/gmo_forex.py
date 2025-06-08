@@ -15,17 +15,18 @@ from etr.core.async_logger import AsyncBufferedLogger
 from etr.config import Config
 from etr.core.datamodel import MarketBook, MarketTrade, Rate, VENUE
 from etr.common.logger import LoggerFactory
+from etr.core.ws import LocalWsPublisher
 
 
 class GmoForexSocketClient:
     def __init__(
         self,
         ccy_pairs: List[str] = ["USD_JPY", "EUR_USD", "GBP_USD", "AUD_USD", "EUR_JPY", "GBP_JPY", "CHF_JPY", "CAD_JPY", "AUD_JPY"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         self.ws_url = "wss://forex-api.coin.z.com/ws/public/v1"
-        self.callbacks = callbacks
+        self.publisher = publisher
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -123,7 +124,7 @@ class GmoForexSocketClient:
                 mid_price=round((float(message["bid"]) + float(message["ask"])) / 2, 7),
                 misc=message["status"],
             )
-            if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(data) for callback in self.callbacks]))  # send(wo-awaiting)
+            if self.publisher is not None: await self.publisher.send(data.to_dict())
             if self.rate[ccypair].timestamp + datetime.timedelta(milliseconds=250) < data.timestamp:  # 250ms throttling
                 self.rate[ccypair] = data
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store

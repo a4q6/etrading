@@ -15,17 +15,18 @@ from etr.core.async_logger import AsyncBufferedLogger
 from etr.config import Config
 from etr.core.datamodel import MarketBook, MarketTrade, Rate, VENUE
 from etr.common.logger import LoggerFactory
+from etr.core.ws import LocalWsPublisher
 
 
 class CoincheckSocketClient:
     def __init__(
         self,
         ccy_pairs: List[str] = ["btc_jpy"],
-        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
         reconnect_attempts: Optional[int] = None,  # no limit
+        publisher: Optional[LocalWsPublisher] = None,
     ):
         self.ws_url = "wss://ws-api.coincheck.com/"
-        self.callbacks = callbacks
+        self.publisher = publisher
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -140,7 +141,7 @@ class CoincheckSocketClient:
 
             # distribute
             if self.market_book[ccypair].misc != "null":
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(cur_book)) for callback in self.callbacks]))  # send(wo-awaiting)
+                if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
                 if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                     self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -150,7 +151,7 @@ class CoincheckSocketClient:
                 new_rate = self.market_book[ccypair].to_rate()
                 if self.rate[ccypair].mid_price != new_rate.mid_price:
                     self.rate[ccypair] = new_rate
-                    if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(deepcopy(new_rate)) for callback in self.callbacks]))
+                    if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
         # market trade
@@ -172,7 +173,7 @@ class CoincheckSocketClient:
                     trade_id=str(msg[1]),
                     order_ids=f"{msg[-2]}_{msg[-1]}",
                 )
-                if self.callbacks: asyncio.create_task(asyncio.gather(*[callback(data) for callback in self.callbacks]))  # send(wo-awaiting)
+                if self.publisher is not None: await self.publisher.send(data.to_dict())
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
                 # update market book
