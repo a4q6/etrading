@@ -10,6 +10,7 @@ from tabulate import tabulate
 from etr.data.data_loader import list_hdb
 import time
 
+from etr.core.notification.discord import send_discord_webhook
 from etr.config import Config
 from etr.common.logger import LoggerFactory
 
@@ -129,6 +130,7 @@ class HdbDumper:
         n_days=20,
         trigger_time_utc: str = "01:00",
         subprocess: bool = False,
+        notification: bool = False,
     ):
         def closure():
             while True:
@@ -141,6 +143,9 @@ class HdbDumper:
                     status_table = files.assign(flag=1).set_index(["date", "table", "venue", "sym"]).flag.unstack(level=1).replace({np.nan: " ", 1.0: "v"}).sort_index().reset_index()
                     status = tabulate(status_table, headers='keys', tablefmt='plain')
                     self.logger.info(f'''\n{status}''')
+                    if notification:
+                        self.logger.info("Send notification message.")
+                        send_discord_webhook("EoD Process Finished!" + "\n" + str(status_table.set_index("date").to_csv(sep="|")), username="EoD-HDB")
                 else:
                     self.logger.info(f"No HDB file found for {prev_date}")
 
