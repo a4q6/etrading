@@ -28,6 +28,7 @@ class HdbDumper:
         "BitFlyerFundingRate": ["FundingRate"],
         "BinanceSocketClient": ["Rate", "MarketTrade"],
         "BinanceRestEoption": ["ImpliedVolatility"],
+        "CoincheckRestClient": ["Order", "Trade"],
     }
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):
@@ -53,16 +54,12 @@ class HdbDumper:
                     break
         first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
         first_records = first_records.dropna()
-        if Path(log_file).name.startswith("TP-GmoCrypt"):  # [NOTE] WA for FH bug found fixed at 2025/05/08
-            first_records["venue"] = "gmo"
-            first_records = first_records.drop_duplicates()
-            self.logger.info("[WA] overwrite venue as 'gmo'")
 
         # check existing files
         exists_all = True
-        for venue, sym in first_records.values:
+        for venue, _ in first_records.values:
             for table in self.table_list[logger_name]:
-                path = self.build_path(table, date, venue, sym)
+                path = self.build_path(table, date, venue, sym_from_fname)
                 self.logger.info(f"{path.exists()} -- {path}")
                 exists_all = exists_all and path.exists()
         if exists_all and skip_if_exists:
@@ -75,7 +72,7 @@ class HdbDumper:
             for i, line in tqdm(enumerate(f)):
                 json_part = line.split("||", 1)[-1]
                 data = json.loads(json_part)
-                records[data.get("_data_type").replace("CirbuitBreaker", "CircuitBreaker")].append(data)  # [NOTE] Workaround
+                records[data.get("_data_type")].append(data)
 
         # Read and dump
         for table, lines in records.items():
@@ -87,16 +84,23 @@ class HdbDumper:
             df = pd.DataFrame(lines).drop("_data_type", axis=1)
             for col in df.columns[df.columns.str.contains("time")]:
                 df[col] = pd.to_datetime(df[col])
-            if "venue" not in df: df["venue"] = venue  # [NOTE] WA for CB table
-            if "sym" not in df: df["sym"] = sym_from_fname  # [NOTE] WA for CB table
-            if table in ["Rate", "MarketBook"] and Path(log_file).name.startswith("TP-GmoCrypt"):
-                # [NOTE] WA for FH bug found fixed at 2025/05/08
-                df["venue"] = "gmo"
-            for sym, venue in df[["sym", "venue"]].drop_duplicates().values:
-                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")  # [NOTE] WA for CB table
-                path = self.build_path(table, date, venue, sym)  # [NOTE] WA for CB table
-                subset = df.query("venue==@venue and sym==@sym")
-                if subset.shape[0] > 0:
+
+            # Case: single file
+            if sym_from_fname == "ALL":
+                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
+                path = self.build_path(table, date, venue, sym_from_fname)
+                if df.shape[0] > 0:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_parquet(path)
+                    self.logger.info(f"Saved '{path}'")
+                else:
+                    self.logger.info(f"No record, skipped '{path}'")
+            # Case: file split by sym
+            else:
+                if df.shape[0] > 0:
+                    self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
+                    assert df.sym.nunique() == 1 and df.sym.dropna().iloc[0] == sym_from_fname, "'sym' column doesn't match with `sym` of TP file"
+                    path = self.build_path(table, date, venue, sym_from_fname)
                     path.parent.mkdir(parents=True, exist_ok=True)
                     df.to_parquet(path)
                     self.logger.info(f"Saved '{path}'")
