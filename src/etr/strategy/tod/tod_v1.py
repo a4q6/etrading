@@ -126,6 +126,7 @@ class TOD_v1(StrategyBase):
                             )
 
         if isinstance(self.client, CoincheckRestClient) and self._next_notification < msg["timestamp"]:
+            self._next_notification = pd.Timestamp.today(tz="UTC").ceil("2h")
             balance = await self.client.fetch_balance()
             if balance.get("success", False):
                 message = f'JPY={balance["jpy"]}, XRP={balance["xrp"]}'
@@ -135,4 +136,3 @@ class TOD_v1(StrategyBase):
                     await async_send_discord_webhook(message="Detect abnormal position size, try stop processing", username="TOD_v1")
                     self.logger.error("Abnomal position size detected, stop this process")
                     raise RuntimeError("Abnormal position size")
-            self._next_notification = pd.Timestamp.now(tz="UTC").ceil("1h")
