@@ -7,8 +7,10 @@ from abc import ABC, abstractmethod
 from typing import Union, List, Dict, Callable, Tuple, Optional
 from etr.common.logger import LoggerFactory
 from etr.core.api_client.base import ExchangeClientBase
+from etr.core.api_client import CoincheckRestClient
 from etr.core.datamodel import Order, Trade, OrderStatus, OrderType
 from etr.strategy import StrategyBase
+from etr.core.notification.discord import async_send_discord_webhook
 
 
 class TOD_v1(StrategyBase):
@@ -32,6 +34,7 @@ class TOD_v1(StrategyBase):
         self.venue = venue
         self.client = client
         self.entry_config = entry_config
+        self._next_notification = pd.Timestamp.today(tz="UTC").ceil("1h")
         self.logger.info(f"Starting up {self.model_id} strategy on {self.venue}. \n{self.entry_config}")
 
     @property
@@ -122,3 +125,14 @@ class TOD_v1(StrategyBase):
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"exit {misc}"
                             )
 
+        if isinstance(self.client, CoincheckRestClient) and self._next_notification < msg["timestamp"]:
+            balance = await self.client.fetch_balance()
+            if balance.get("success", False):
+                message = f'JPY={balance["jpy"]}, XRP={balance["xrp"]}'
+                await async_send_discord_webhook(message=message, username="TOD_v1")
+                amt = abs(float(balance["xrp"]))
+                if max([c["amount"] for c in self.entry_config.values()]) * 3 < amt:
+                    await async_send_discord_webhook(message="Detect abnormal position size, try stop processing", username="TOD_v1")
+                    self.logger.error("Abnomal position size detected, stop this process")
+                    raise RuntimeError("Abnormal position size")
+            self._next_notification = pd.Timestamp.now(tz="UTC").ceil("1h")
