@@ -18,7 +18,7 @@ if __name__ == "__main__":
     #         raise RuntimeError()
 
     # initialize
-    client = CoincheckRestClient(log_filee="tod_v1.log")
+    client = CoincheckRestClient(log_file="tod_v1.log")
     strategy = TOD_v1(
         venue="coincheck",
         entry_config=[
