@@ -85,8 +85,12 @@ class TOD_v1(StrategyBase):
             if msg["venue"] == self.venue:
                 sym = msg.get("sym")
                 for config in self.entry_config:
+                    if config["next_exit_time"] + datetime.timedelta(minutes=10) < msg["timestamp"]:
+                        config["next_entry_time"] = self.next_occurrence(given_dt=msg["timestamp"], target_time=config["start"])
+                        config["next_exit_time"] = config["next_entry_time"] + datetime.timedelta(minutes=config["holding_minutes"])
                     if config["sym"] != sym:
                         continue
+
                     misc = f"{config['start']}+{config['holding_minutes']}M"
                     # entry
                     if (config["entry_order"] is None) and (config["next_entry_time"] < msg["timestamp"] < config["next_entry_time"] + datetime.timedelta(minutes=5)):
@@ -104,7 +108,7 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for SL {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["entry_order"].executed_amount,
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"sl {misc}"
                             )
 
@@ -114,7 +118,7 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for exit {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["amount"],
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["entry_order"].executed_amount,
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"exit {misc}"
                             )
 
