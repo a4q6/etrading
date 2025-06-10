@@ -132,7 +132,7 @@ class TOD_v1(StrategyBase):
                 message = f'JPY={balance["jpy"]}, XRP={balance["xrp"]}'
                 await async_send_discord_webhook(message=message, username="TOD_v1")
                 amt = abs(float(balance["xrp"]))
-                if max([c["amount"] for c in self.entry_config.values()]) * 3 < amt:
+                if max([c["amount"] for c in self.entry_config]) * 3 < amt:
                     await async_send_discord_webhook(message="Detect abnormal position size, try stop processing", username="TOD_v1")
                     self.logger.error("Abnomal position size detected, stop this process")
                     raise RuntimeError("Abnormal position size")
