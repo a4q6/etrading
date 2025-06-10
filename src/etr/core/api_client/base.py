@@ -21,7 +21,7 @@ class ExchangeClientBase(ABC):
 
     def __init__(
         self,
-        log_name: Optional[str] = "exchange.log",
+        log_file: Optional[str] = "exchange.log",
         **kwargs,
     ):
         # logger
