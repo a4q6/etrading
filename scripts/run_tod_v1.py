@@ -41,6 +41,8 @@ if __name__ == "__main__":
             {"_data_type": "Rate", "venue": "coincheck", "sym": "XRPJPY"},
             {"_data_type": "MarketTrade", "venue": "coincheck", "sym": "XRPJPY"},
         ])
+        asyncio.create_task(client.loop_fetch_transactions())
+
         now = pd.Timestamp.today()
         stop = (now + pd.Timedelta("1d")).ceil("1d")
         await asyncio.sleep((stop - now).total_seconds())
@@ -48,10 +50,7 @@ if __name__ == "__main__":
     # start main logic
     async def main():
         try:
-            await asyncio.gather(
-                start_subscribe(),
-                client.loop_fetch_transactions(),
-            )
+            await start_subscribe()
         except KeyboardInterrupt:
             print("Interrupted by user")
         finally:
