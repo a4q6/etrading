@@ -51,6 +51,10 @@ class LocalWsClient:
 
                 retry_delay = 1
                 await self._listen()
+            
+            except RuntimeError as e:
+                self.logger.error("RuntimeError detected. Stop connection.")
+                await self.close()
 
             except Exception as e:
                 self.logger.warning(f"Connection error: {e}")
