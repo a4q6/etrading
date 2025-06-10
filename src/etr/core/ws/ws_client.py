@@ -17,9 +17,10 @@ class LocalWsClient:
         log_file = None,
         reconnect: bool = True,
     ):
+        logger_name = "ws-client" if log_file is None else log_file.split("/")[-1].split(".")[0]
         if log_file is not None:
-            log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
-        self.logger = LoggerFactory().get_logger(logger_name=__name__, log_file=log_file)
+            log_file = Path(Config.LOG_DIR).joinpath(log_file).as_posix()
+        self.logger = LoggerFactory().get_logger(logger_name=logger_name, log_file=log_file)
         self.uri = uri
         self.websocket: Optional[websockets.WebSocketClientProtocol] = None
         self.callbacks = callbacks
