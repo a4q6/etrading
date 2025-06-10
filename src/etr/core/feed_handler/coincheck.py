@@ -112,7 +112,7 @@ class CoincheckSocketClient:
         # market book
         if len(message) == 2 and isinstance(message[1], dict) and "last_update_at" in message[1].keys():
             ccypair = message[0]
-            timestamp = datetime.datetime.fromtimestamp(float(message[1]["last_update_at"])).replace(tzinfo=pytz.timezone("UTC"))
+            timestamp = pytz.timezone("Asia/Tokyo").localize(datetime.datetime.fromtimestamp(float(message[1]["last_update_at"])))
             if timestamp < self.market_book[ccypair].timestamp:
                 return
 
@@ -134,7 +134,7 @@ class CoincheckSocketClient:
             for p, v in bids.items():
                 if v == 0:
                     if p in cur_book.bids.keys():
-                      cur_book.bids.pop(p)
+                        cur_book.bids.pop(p)
                 else:
                     cur_book.bids[p] = v
             self.market_book[ccypair] = cur_book
@@ -160,7 +160,7 @@ class CoincheckSocketClient:
                 ccypair = msg[2]
                 side = 1 * (msg[-3] == "buy") - 1 * (msg[-3] == "sell")
                 price = float(msg[3])
-                timestamp = datetime.datetime.fromtimestamp(int(msg[0])).replace(tzinfo=pytz.timezone("UTC"))
+                timestamp = pytz.timezone("Asia/Tokyo").localize(datetime.datetime.fromtimestamp(int(msg[0])))
                 data = MarketTrade(
                     timestamp=datetime.datetime.now(tz=datetime.timezone.utc),
                     market_created_timestamp=timestamp,
