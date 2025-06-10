@@ -14,7 +14,6 @@ from etr.common.logger import LoggerFactory
 from etr.strategy.base_strategy import StrategyBase
 from etr.config import Config
 from etr.core.async_logger import AsyncBufferedLogger
-from etr.core.api_client.api_counter import ApiCounter
 from etr.core.datamodel import Order, Rate, Trade
 
 
@@ -22,17 +21,13 @@ class ExchangeClientBase(ABC):
 
     def __init__(
         self,
-        api_limit: int, 
-        api_count_period_sec: float,
         log_name: Optional[str] = "exchange.log",
         **kwargs,
     ):
-        # api counter
-        self.api_counter = ApiCounter(api_limit, api_count_period_sec)
         # logger
         tp_file = Path(Config.TP_DIR)
         self.ticker_plant = AsyncBufferedLogger(
-            logger_name=f"TP-{self.__class__.__name__}-ALLSYM",
+            logger_name=f"TP-{self.__class__.__name__}-ALL",
             log_dir=tp_file.as_posix()
         )
         log_file = Path(Config.LOG_DIR).joinpath(f"{log_name}").as_posix()

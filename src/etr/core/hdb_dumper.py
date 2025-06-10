@@ -97,8 +97,8 @@ class HdbDumper:
                     self.logger.info(f"No record, skipped '{path}'")
             # Case: file split by sym
             else:
+                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
                 if df.shape[0] > 0:
-                    self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
                     assert df.sym.nunique() == 1 and df.sym.dropna().iloc[0] == sym_from_fname, "'sym' column doesn't match with `sym` of TP file"
                     path = self.build_path(table, date, venue, sym_from_fname)
                     path.parent.mkdir(parents=True, exist_ok=True)

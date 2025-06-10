@@ -28,8 +28,6 @@ class CoincheckRestClient(ExchangeClientBase):
         log_name="strategy.log",
     ):
         super().__init__(
-            api_limit=1,
-            api_count_period_sec=1,
             log_name=log_name,
         )
         self.uri = "https://coincheck.com"
