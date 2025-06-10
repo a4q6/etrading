@@ -1,0 +1,1 @@
+from .coincheck import CoincheckRestClient
