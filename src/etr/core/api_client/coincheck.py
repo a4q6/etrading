@@ -25,11 +25,9 @@ class CoincheckRestClient(ExchangeClientBase):
         self,
         api_key: str = Config.COINCHECK_API_KEY,
         api_secret: str = Config.COINCHECK_API_SECRET,
-        log_name="strategy.log",
+        log_file="strategy.log",
     ):
-        super().__init__(
-            log_name=log_name,
-        )
+        super().__init__(log_file=log_file)
         self.uri = "https://coincheck.com"
         self.api_key = api_key
         self.api_secret = api_secret
