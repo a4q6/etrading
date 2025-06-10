@@ -30,8 +30,10 @@ class ExchangeClientBase(ABC):
             logger_name=f"TP-{self.__class__.__name__}-ALL",
             log_dir=tp_file.as_posix()
         )
-        log_file = Path(Config.LOG_DIR).joinpath(f"{log_name}").as_posix()
-        self.logger = LoggerFactory().get_logger(logger_name="main", log_file=None if log_name is None else log_file)
+        logger_name = "ex-client" if log_file is None else log_file.split("/")[-1].split(".")[0]
+        if log_file is not None:
+            log_file = Path(Config.LOG_DIR).joinpath(log_file).as_posix()
+        self.logger = LoggerFactory().get_logger(logger_name=logger_name, log_file=log_file)
         self.closed_pnl = 0
         self.open_pnl = {}
         self.positions = {}  # {sym: (amount, vwap)}
