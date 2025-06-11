@@ -92,6 +92,7 @@ class TOD_v1(StrategyBase):
                         config["next_entry_time"] = self.next_occurrence(given_dt=msg["timestamp"], target_time=config["start"])
                         config["next_exit_time"] = config["next_entry_time"] + datetime.timedelta(minutes=config["holding_minutes"])
                     if config["sym"] != sym:
+                        self.logger.warning(f"skip entry for {msg['timestamp']}")
                         continue
 
                     misc = f"{config['start']}+{config['holding_minutes']}M"

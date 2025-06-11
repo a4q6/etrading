@@ -288,13 +288,13 @@ class CoincheckRestClient(ExchangeClientBase):
                     self.logger.warning(f"Failed to fetch latest transactions: {response.status} \n{error}")
                     return error
 
-    async def loop_fetch_transactions(self, update_interval=5):
+    async def loop_fetch_transactions(self, update_interval=10):
         while True:
             await self.fetch_transactions()
             now = pd.Timestamp.now(tz="UTC")
             next_time = now.ceil(f"{update_interval}s")
             sleep_duration = (next_time - now).total_seconds()
-            sleep_duration = sleep_duration + 5 if sleep_duration < 1 else sleep_duration  # add buffer
+            sleep_duration = sleep_duration if sleep_duration < 1 else sleep_duration  # add buffer
             await asyncio.sleep(sleep_duration)
 
     async def fetch_open_orders(self) -> Dict:
