@@ -139,7 +139,7 @@ class BinanceSocketClient:
                 self.rate[sym].mid_price = (best_bid + best_ask) / 2
                 self.rate[sym].misc = "spot"
                 new_rate = deepcopy(self.rate[sym])
-                if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(new_rate.to_dict()))
                 asyncio.create_task(self.ticker_plant[sym].info(json.dumps(new_rate.to_dict())))  # store
 
         elif "aggTrade" in message["stream"]:

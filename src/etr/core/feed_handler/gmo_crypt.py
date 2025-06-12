@@ -132,7 +132,7 @@ class GmoCryptSocketClient:
                 price=float(message["price"]),
                 amount=float(message["size"]),
             )
-            if self.publisher is not None: await self.publisher.send(data.to_dict())
+            if self.publisher is not None: asyncio.create_task(self.publisher.send(data.to_dict()))
             asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
         if message["channel"] == "orderbooks":
@@ -150,7 +150,7 @@ class GmoCryptSocketClient:
             self.market_book[ccypair] = cur_book
 
             # distribute
-            if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
+            if self.publisher is not None: asyncio.create_task(self.publisher.send(cur_book.to_dict()))
             if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                 self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -159,7 +159,7 @@ class GmoCryptSocketClient:
             new_rate = self.market_book[ccypair].to_rate()
             if self.rate[ccypair].mid_price != new_rate.mid_price:
                 self.rate[ccypair] = new_rate
-                if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(new_rate.to_dict()))
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
             if self.heatbeat_memo + datetime.timedelta(seconds=60) < cur_book.timestamp:

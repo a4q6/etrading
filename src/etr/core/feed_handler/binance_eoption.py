@@ -107,7 +107,7 @@ class BinanceRestEoption:
                             "venue": key[2],
                             "records": group.to_dict(orient="records"),
                         }
-                        if self.publisher is not None: await self.publisher.send(records)
+                        if self.publisher is not None: asyncio.create_task(self.publisher.send(records))
 
                     # write to TP
                     d = iv.to_dict(orient="records")

@@ -141,7 +141,7 @@ class CoincheckSocketClient:
 
             # distribute
             if self.market_book[ccypair].misc != "null":
-                if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(cur_book.to_dict()))
                 if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                     self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -151,7 +151,7 @@ class CoincheckSocketClient:
                 new_rate = self.market_book[ccypair].to_rate()
                 if self.rate[ccypair].mid_price != new_rate.mid_price:
                     self.rate[ccypair] = new_rate
-                    if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
+                    if self.publisher is not None: asyncio.create_task(self.publisher.send(new_rate.to_dict()))
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
         # market trade
@@ -173,7 +173,7 @@ class CoincheckSocketClient:
                     trade_id=str(msg[1]),
                     order_ids=f"{msg[-2]}_{msg[-1]}",
                 )
-                if self.publisher is not None: await self.publisher.send(data.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(data.to_dict()))
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
                 # update market book

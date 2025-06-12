@@ -124,7 +124,7 @@ class GmoForexSocketClient:
                 mid_price=round((float(message["bid"]) + float(message["ask"])) / 2, 7),
                 misc=message["status"],
             )
-            if self.publisher is not None: await self.publisher.send(data.to_dict())
+            if self.publisher is not None: asyncio.create_task(self.publisher.send(data.to_dict()))
             if self.rate[ccypair].timestamp + datetime.timedelta(milliseconds=250) < data.timestamp:  # 250ms throttling
                 self.rate[ccypair] = data
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store

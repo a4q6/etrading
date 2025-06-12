@@ -154,12 +154,14 @@ if __name__ == '__main__':
 
         await asyncio.sleep(2)
         await client.subscribe([
-            {"_data_type": "MarketTrade", "venue": "binance", "sym": "BTCUSDT"},
-            {"_data_type": "MarketTrade", "venue": "bitflyer", "sym": "FXBTCJPY"},
-            {"_data_type": "Rate", "venue": "gmo", "sym": "USDJPY"},
+            {"_data_type": "MarketTrade", "venue": "coincheck", "sym": "BTCJPY"},
+            {"_data_type": "Rate", "venue": "coincheck", "sym": "BTCJPY"},
+            # {"_data_type": "Rate", "venue": "coincheck", "sym": "BTCJPY"},
+            # {"_data_type": "MarketTrade", "venue": "bitflyer", "sym": "FXBTCJPY"},
+            # {"_data_type": "Rate", "venue": "gmo", "sym": "USDJPY"},
         ])
 
-        await asyncio.sleep(30)
+        await asyncio.sleep(60)
         await client.close()
 
     asyncio.run(main())

@@ -149,7 +149,7 @@ class BitBankSocketClient:
                     amount=float(trs["amount"]),
                     trade_id=str(trs["transaction_id"]),
                 )
-                if self.publisher is not None: await self.publisher.send(data.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(data.to_dict()))
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
         elif body["room_name"].startswith("depth_whole"):
@@ -185,7 +185,7 @@ class BitBankSocketClient:
             self.market_book[ccypair] = deepcopy(cur_book)
             
             # distribute
-            if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
+            if self.publisher is not None: asyncio.create_task(self.publisher.send(cur_book.to_dict()))
             asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
 
         elif body["room_name"].startswith("depth_diff"):
@@ -216,7 +216,7 @@ class BitBankSocketClient:
                 self.market_book[ccypair] = deepcopy(cur_book)
 
                 # distribute
-                if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(cur_book.to_dict()))
                 if self.last_emit_market_book[ccypair] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(cur_book.to_dict())))  # store
                     self.last_emit_market_book[ccypair] = cur_book.timestamp
@@ -237,7 +237,7 @@ class BitBankSocketClient:
                 new_rate = cur_book.to_rate()
                 if self.rate[ccypair].mid_price != new_rate.mid_price:
                     self.rate[ccypair] = new_rate
-                    if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
+                    if self.publisher is not None: asyncio.create_task(self.publisher.send(new_rate.to_dict()))
                     asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(new_rate.to_dict())))  # store
 
 if __name__ == '__main__':

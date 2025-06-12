@@ -135,7 +135,7 @@ class BitmexSocketClient:
                     universal_id = uuid4().hex,
                     misc = one_trade_dict["tickDirection"],
                 )
-                if self.publisher is not None: await self.publisher.send(data.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(data.to_dict()))
                 asyncio.create_task(self.ticker_plant[sym].info(json.dumps(data.to_dict()))) # store
 
         elif message.get("table") == "orderBookL2_25":
@@ -199,7 +199,7 @@ class BitmexSocketClient:
             # distribute
             for sym in syms:
                 cur_book = deepcopy(self.market_book[sym])
-                if self.publisher is not None: await self.publisher.send(cur_book.to_dict())
+                if self.publisher is not None: asyncio.create_task(self.publisher.send(cur_book.to_dict()))
                 if self.last_emit_market_book[sym] + datetime.timedelta(milliseconds=250) < cur_book.timestamp:
                     asyncio.create_task(self.ticker_plant[sym].info(json.dumps(cur_book.to_dict())))  # store
                     self.last_emit_market_book[sym] = cur_book.timestamp
@@ -211,7 +211,7 @@ class BitmexSocketClient:
                     new_rate = book.to_rate()
                     if self.rate[sym].mid_price != new_rate.mid_price:
                         self.rate[sym] = new_rate
-                        if self.publisher is not None: await self.publisher.send(new_rate.to_dict())
+                        if self.publisher is not None: asyncio.create_task(self.publisher.send(new_rate.to_dict()))
                         asyncio.create_task(self.ticker_plant[sym].info(json.dumps(new_rate.to_dict())))  # store
 
 
