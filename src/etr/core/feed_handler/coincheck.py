@@ -112,10 +112,7 @@ class CoincheckSocketClient:
         # market book
         if len(message) == 2 and isinstance(message[1], dict) and "last_update_at" in message[1].keys():
             ccypair = message[0]
-            timestamp = pytz.timezone("Asia/Tokyo").localize(datetime.datetime.fromtimestamp(float(message[1]["last_update_at"])))
-            if timestamp < self.market_book[ccypair].timestamp:
-                return
-
+            timestamp = pytz.timezone("UTC").localize(datetime.datetime.fromtimestamp(float(message[1]["last_update_at"])))
             # diff msg
             cur_book = self.market_book[ccypair]
             cur_book.timestamp = datetime.datetime.now(datetime.timezone.utc)
@@ -160,7 +157,7 @@ class CoincheckSocketClient:
                 ccypair = msg[2]
                 side = 1 * (msg[-3] == "buy") - 1 * (msg[-3] == "sell")
                 price = float(msg[3])
-                timestamp = pytz.timezone("Asia/Tokyo").localize(datetime.datetime.fromtimestamp(int(msg[0])))
+                timestamp = pytz.timezone("UTC").localize(datetime.datetime.fromtimestamp(int(msg[0])))
                 data = MarketTrade(
                     timestamp=datetime.datetime.now(tz=datetime.timezone.utc),
                     market_created_timestamp=timestamp,
@@ -177,7 +174,7 @@ class CoincheckSocketClient:
                 asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data.to_dict()))) # store
 
                 # update market book
-                if self.market_book[ccypair].market_created_timestamp == timestamp:
+                if self.market_book[ccypair].market_created_timestamp <= timestamp:
                     if side > 0:
                         self.market_book[ccypair].asks = SortedDict({p: v for p, v in self.market_book[ccypair].asks.items() if price <= p})
                     elif side < 0:
