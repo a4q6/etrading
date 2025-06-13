@@ -105,6 +105,7 @@ class TOD_v1(StrategyBase):
                                 timestamp=msg["timestamp"], sym=config["sym"], side=config["side"], price=msg["mid_price"], amount=config["amount"],
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"entry {misc}"
                             )
+                            self.logger.info(f"Entry Order Info:\n{config['entry_order']}")
 
                     # SL
                     if (config["entry_order"] is not None) and (config["exit_order"] is None):
@@ -112,9 +113,10 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for SL {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["entry_order"].executed_amount,
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos),
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"sl {misc}"
                             )
+                            self.logger.info(f"SL Order Info:\n{config['exit_order']}")
 
                     # exit
                     if (config["entry_order"] is not None) and (config["exit_order"] is None):
@@ -122,9 +124,10 @@ class TOD_v1(StrategyBase):
                             self.logger.info(f"Try sending MO for exit {misc} ...")
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=config["entry_order"].executed_amount,
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos),
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"exit {misc}"
                             )
+                            self.logger.info(f"Exit Order Info:\n{config['exit_order']}")
 
         if isinstance(self.client, CoincheckRestClient) and self._next_notification < msg["timestamp"]:
             self._next_notification = pd.Timestamp.today(tz="UTC").ceil("2h")
