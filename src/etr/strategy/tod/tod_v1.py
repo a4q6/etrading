@@ -69,16 +69,16 @@ class TOD_v1(StrategyBase):
                     config["next_exit_time"] = config["next_entry_time"] + datetime.timedelta(minutes=config["holding_minutes"])
                     config["entry_order"] = None
                     config["exit_order"] = None
-                    self.logger.info(f"Exit MO (orderID = '{msg['order_id']}') has filled. Refreshed config for next entry. \n{config}")
+                    self.logger.info(f"Exit MO (orderID = '{msg['order_id']}') has been filled. Refreshed config for next entry. \n{config}")
 
         # update order status
         if dtype == "Order":
             for config in self.entry_config:
-                if isinstance(config["entry_order"], Order) and config["entry_order"].universal_id == msg["universal_id"]:
+                if isinstance(config["entry_order"], Order) and config["entry_order"].order_id == msg["order_id"]:
                     msg.pop("_data_type")
                     config["entry_order"] = Order(**msg)
                     self.logger.info(f"Update entry order status (orderID = '{msg['order_id']}') \n{config}")
-                if isinstance(config["exit_order"], Order) and config["exit_order"].universal_id == msg["universal_id"]:
+                if isinstance(config["exit_order"], Order) and config["exit_order"].order_id == msg["order_id"]:
                     msg.pop("_data_type")
                     config["exit_order"] = Order(**msg)
                     self.logger.info(f"Update exit order status (orderID = '{msg['order_id']}') \n{config}")

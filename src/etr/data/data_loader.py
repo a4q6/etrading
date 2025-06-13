@@ -14,7 +14,7 @@ VENUE_TO_TP = {
     "bitmex": ["TP-BitmexSocketClient-{}.log"],
     "gmo": ["TP-GmoForexSocketClient-{}.log", "TP-GmoCryptSocketClient-{}.log"],
     "bitflyer": ["TP-BitFlyerSocketClient-{}.log"],
-    "coincheck": ["TP-CoincheckSocketClient-{}.log"],
+    "coincheck": ["TP-CoincheckSocketClient-{}.log", "TP-CoincheckRestClient-{}.log"],
     "bitbank": ["TP-BitBankSocketClient-{}.log"],
 }
 
@@ -76,7 +76,7 @@ def load_data(
         assert all(arg != "*" for arg in [venue, symbol]), "wildcard specification is not allowed for intraday data."
         logger.info(f"Loading log ticker for {table}-{venue}-{symbol}...")
         tp_names = VENUE_TO_TP.get(venue)
-        tp_files = [tp_dir.joinpath(fname.format(symbol)) for fname in tp_names]
+        tp_files = [tp_dir.joinpath(fname.format(symbol)) for fname in tp_names if tp_dir.joinpath(fname.format(symbol)).exists()]
         assert venue is not None, f"TP file of '{venue}' is not available or registered to mapping table."
         latest_data = pd.concat([read_log_ticker(table, log_file=tp_file) for tp_file in tp_files])
 

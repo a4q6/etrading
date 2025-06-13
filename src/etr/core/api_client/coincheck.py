@@ -8,6 +8,7 @@ import time
 import pandas as pd
 import asyncio
 import numpy as np
+from uuid import uuid4
 from typing import Optional, Dict, Union
 from copy import deepcopy
 from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
@@ -114,6 +115,7 @@ class CoincheckRestClient(ExchangeClientBase):
         order_info.market_created_timestamp = pd.Timestamp(res["created_at"])
         order_info.order_id = str(res["id"])
         order_info.order_status = OrderStatus.Sent
+        order_info.universal_id = uuid4().hex
         self._order_cache[order_info.order_id] = order_info
         asyncio.create_task(self.ticker_plant.info(json.dumps(order_info.to_dict())))  # store
 
@@ -152,6 +154,7 @@ class CoincheckRestClient(ExchangeClientBase):
                     oinfo.src_id = src_id
                     oinfo.src_timestamp = src_timestamp
                     oinfo.misc = misc
+                    oinfo.universal_id = uuid4().hex
                     asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store
                     return deepcopy(oinfo)
                 else:
@@ -211,6 +214,7 @@ class CoincheckRestClient(ExchangeClientBase):
                         oinfo.misc = str({'executed_market_buy_amount': float(amt)})
                     else:
                         oinfo.executed_amount = float(data["executed_amount"])
+                    oinfo.universal_id = uuid4().hex
                     asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store order info
                     return deepcopy(oinfo)
                 else:
@@ -266,6 +270,7 @@ class CoincheckRestClient(ExchangeClientBase):
                             amt = abs(float(msg["funds"][base_ccy]))
                             misc = {'fee': msg['fee'], 'liquidity': msg["liquidity"]}
                             oinfo.executed_amount = min(oinfo.executed_amount + amt, oinfo.amount)
+                            oinfo.universal_id = uuid4().hex
                             if oinfo.order_type == OrderType.Market:
                                 oinfo.price = float(msg["rate"])
                             trade: Trade = Trade.from_order(
@@ -275,9 +280,10 @@ class CoincheckRestClient(ExchangeClientBase):
                                 price=float(msg["rate"]), exec_amount=abs(float(msg["funds"][base_ccy])),
                                 order=oinfo, misc=str(misc),
                             )
-                            self._transaction_cache[tid] = trade
-                            self._order_cache[oid] = oinfo
+                            self._transaction_cache[tid] = deepcopy(trade)
+                            self._order_cache[oid] = deepcopy(oinfo)
                             self.update_position(trade=trade)
+                            await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
                             await self.strategy.on_message(trade.to_dict(to_string_timestamp=False))  # invoke strategy
                             asyncio.create_task(self.ticker_plant.info(json.dumps(trade.to_dict())))  # store in TP
                             asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store in TP
