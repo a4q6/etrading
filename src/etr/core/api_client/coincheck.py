@@ -155,6 +155,7 @@ class CoincheckRestClient(ExchangeClientBase):
                     oinfo.src_timestamp = src_timestamp
                     oinfo.misc = misc
                     oinfo.universal_id = uuid4().hex
+                    self._order_cache[oinfo.order_id] = oinfo
                     asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store
                     return deepcopy(oinfo)
                 else:
