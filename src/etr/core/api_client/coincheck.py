@@ -40,7 +40,7 @@ class CoincheckRestClient(ExchangeClientBase):
 
         self.closed_pnl = 0
         self.open_pnl = {}
-        self.positions = {}  # {sym: (amount, vwap)}
+        self.positions = {}  # {sym: (vwap, amount)}
 
     def _create_headers(self, url: str, body: Optional[str] = "") -> dict:
         nonce = str(int(time.time() * 1000))
@@ -96,7 +96,7 @@ class CoincheckRestClient(ExchangeClientBase):
             venue=self.venue, model_id=self.strategy.model_id, process_id=self.strategy.process_id, src_type=src_type, 
             src_id=src_id, src_timestamp=src_timestamp
         )
-        asyncio.create_task(self.ticker_plant.info(json.dumps(order_info.to_dict())))  # store (new)
+        asyncio.create_task(self.ticker_plant.info(json.dumps(order_info.to_dict())))  # store
 
         # Send request
         self.logger.info(f"Sending {order_type} order UID = {order_info.universal_id}")
@@ -123,6 +123,7 @@ class CoincheckRestClient(ExchangeClientBase):
         if order_type == OrderType.Market:
             await asyncio.sleep(0.5)
             await self.fetch_transactions()
+            await self.check_order(order_id=order_info.order_id)
 
         return deepcopy(self._order_cache[order_info.order_id])
 
@@ -270,6 +271,7 @@ class CoincheckRestClient(ExchangeClientBase):
                             misc = {'fee': msg['fee'], 'liquidity': msg["liquidity"]}
                             oinfo.executed_amount = min(oinfo.executed_amount + amt, oinfo.amount)
                             oinfo.universal_id = uuid4().hex
+                            oinfo.order_status = OrderStatus.Updated
                             if oinfo.order_type == OrderType.Market:
                                 oinfo.price = float(msg["rate"])
                             trade: Trade = Trade.from_order(
@@ -282,8 +284,8 @@ class CoincheckRestClient(ExchangeClientBase):
                             self._transaction_cache[tid] = deepcopy(trade)
                             self._order_cache[oid] = deepcopy(oinfo)
                             self.update_position(trade=trade)
-                            asyncio.create_task(self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False)))  # invoke strategy
-                            asyncio.create_task(self.strategy.on_message(trade.to_dict(to_string_timestamp=False)))  # invoke strategy
+                            await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
+                            await self.strategy.on_message(trade.to_dict(to_string_timestamp=False))  # invoke strategy
                             asyncio.create_task(self.ticker_plant.info(json.dumps(trade.to_dict())))  # store in TP
                             asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store in TP
                             self.logger.info(f"Found new transaction: \n{trade.to_dict()}")

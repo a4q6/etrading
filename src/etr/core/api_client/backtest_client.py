@@ -31,7 +31,7 @@ class BacktestClient(ExchangeClientBase):
         self.open_market_orders: Dict[str, Order] = {}
         self.closed_pnl = 0
         self.open_pnl = {}
-        self.positions = {}  # {sym: (amount, vwap)}
+        self.positions = {}  # {sym: (vwap, amount)}
         self.transactions: List[Trade] = []
 
 

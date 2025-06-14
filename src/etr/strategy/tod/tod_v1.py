@@ -37,9 +37,8 @@ class TOD_v1(StrategyBase):
         self._next_notification = pd.Timestamp.today(tz="UTC").ceil("1h")
         self.logger.info(f"Starting up {self.model_id} strategy on {self.venue}. \n{self.entry_config}")
 
-    @property
-    def cur_pos(self):
-        return self.client.positions.get(self.sym, [0, 0])[1]  # [vwap, amount]
+    def cur_pos(self, sym) -> float:
+        return self.client.positions.get(sym, [0, 0])[1]  # [vwap, amount]
 
     @staticmethod
     def next_occurrence(given_dt: datetime.datetime, target_time: datetime.time) -> datetime.datetime:
@@ -111,9 +110,10 @@ class TOD_v1(StrategyBase):
                     if (config["entry_order"] is not None) and (config["exit_order"] is None):
                         if (msg["mid_price"] / config["entry_order"].price - 1) * 1e4 * config["side"] < -config["sl_level"]:
                             self.logger.info(f"Try sending MO for SL {misc} ...")
+                            sym = config["sym"]
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos),
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos(sym)),
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"sl {misc}"
                             )
                             self.logger.info(f"SL Order Info:\n{config['exit_order']}")
@@ -122,9 +122,10 @@ class TOD_v1(StrategyBase):
                     if (config["entry_order"] is not None) and (config["exit_order"] is None):
                         if config["next_exit_time"] < msg["timestamp"]:
                             self.logger.info(f"Try sending MO for exit {misc} ...")
+                            sym = config["sym"]
                             config["exit_order"] = "sending"
                             config["exit_order"] = await self.client.send_order(
-                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos),
+                                timestamp=msg["timestamp"], sym=config["sym"], side=-1 * config["side"], price=msg["mid_price"], amount=abs(self.cur_pos(sym)),
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"exit {misc}"
                             )
                             self.logger.info(f"Exit Order Info:\n{config['exit_order']}")
