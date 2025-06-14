@@ -186,6 +186,7 @@ class Order:
 class OrderType:
     Limit = "limit"
     Market = "market"
+    Stop = "stop"
     @staticmethod
     def convert(s: str) -> str:
         if s in ["LIMIT"]:

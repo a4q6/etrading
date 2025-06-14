@@ -12,3 +12,5 @@ class Config:
 
     COINCHECK_API_KEY = os.getenv("COINCHECK_API_KEY")
     COINCHECK_API_SECRET = os.getenv("COINCHECK_API_SECRET")
+    BITBANK_API_KEY = os.getenv("BITBANK_API_KEY")
+    BITBANK_API_SECRET = os.getenv("BITBANK_API_SECRET")
