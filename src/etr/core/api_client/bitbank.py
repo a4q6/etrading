@@ -11,6 +11,7 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 import pytz
+from urllib.parse import urlparse, urlencode
 
 from etr.core.async_logger import AsyncBufferedLogger
 from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
@@ -26,7 +27,7 @@ class BitbankRestClient(ExchangeClientBase):
         https://github.com/bitbankinc/bitbank-api-docs/blob/master/rest-api_JP.md
     """
 
-    BASE_URL = "https://api.bitbank.cc/v1"
+    BASE_URL = "https://api.bitbank.cc"
 
     def as_bb_symbol(self, sym: str) -> str:
         return sym[:-3].lower() + "_" + sym[-3:].lower()
@@ -42,7 +43,7 @@ class BitbankRestClient(ExchangeClientBase):
         **kwargs,
     ):
         self.api_key = api_key
-        self.api_secret = api_secret
+        self.api_secret = api_secret.encode()
 
         # logger
         tp_file = Path(Config.TP_DIR)
@@ -60,11 +61,22 @@ class BitbankRestClient(ExchangeClientBase):
         self.strategy: StrategyBase = None
 
     def _generate_signature(self, method: str, path: str, body: dict = None):
-        nonce = str(int(time.time()))
+        nonce = str(int(time.time() * 1000))
+        # build message
         if method.upper() == "GET":
             message = nonce + path
+        elif method.upper() == "POST":
+            if body is None:
+                body_str = ""  # POSTはnonce + JSONボディ文字列を署名対象に
+            else:
+                # bodyは辞書を想定し、JSON文字列化
+                body_str = json.dumps(body, separators=(",", ":"))  # 余計な空白を削除したcompact形式
+            message = nonce + body_str
         else:
-            message = nonce + json.dumps(body) if body else nonce
+            raise ValueError(f"Unsupported HTTP method: {method}")
+
+        # build signature
+        self.logger.info(message)
         signature = hmac.new(self.api_secret, message.encode(), hashlib.sha256).hexdigest()
         headers = {
             "ACCESS-KEY": self.api_key,
@@ -75,9 +87,13 @@ class BitbankRestClient(ExchangeClientBase):
         return headers
 
     async def _request(self, method: str, path: str, params: dict = None, body: dict = None) -> Dict:
+        if method == "GET" and params is not None:
+            path = path + "?" + urlencode(params)  # add parameter at the end of request path in case of (GET, params)
+            body = params  # move parameters to body to be embbeded in signature
+            params = {}
         url = self.BASE_URL + path
-        headers = self._generate_signature(method, path, body)
-
+        self.logger.info(f"{url} {path} {params} {body}")
+        headers = self._generate_signature(method=method, path=path, body=body)
         async with aiohttp.ClientSession() as session:
             if method.upper() == "GET":
                 async with session.get(url, headers=headers, params=params) as resp:
@@ -127,7 +143,7 @@ class BitbankRestClient(ExchangeClientBase):
             body["post_only"] = True  # https://support.bitbank.cc/hc/ja/articles/900005145623--%E5%8F%96%E5%BC%95%E6%89%80-Post-Only%E3%81%A8%E3%81%AF%E3%81%AA%E3%82%93%E3%81%A7%E3%81%99%E3%81%8B
         
         # send request
-        res = await self._request("POST", "/user/spot/order", body=body)
+        res = await self._request("POST", "/v1/user/spot/order", body=body)
         if return_raw_response:
             return res
         if res.get("success") != 1:
@@ -175,7 +191,7 @@ class BitbankRestClient(ExchangeClientBase):
         # build body
         oinfo = deepcopy(self._order_cache[order_id])
         body = {"pair": self.as_bb_symbol(oinfo.sym), "order_id": int(order_id)}
-        res = await self._request("POST", "/user/spot/cancel_order", body=body)
+        res = await self._request("POST", "/v1/user/spot/cancel_order", body=body)
         if return_raw_response:
             return res
         if res.get("success") != 1:
@@ -197,7 +213,7 @@ class BitbankRestClient(ExchangeClientBase):
     async def check_order(self, order_id: str, return_raw_response=False) -> Union[Dict, Order]:
         data = self._order_cache[order_id]
         params = {"pair": self.as_bb_symbol(data.sym), "order_id": int(order_id)}
-        res = await self._request("GET", "/user/spot/order", params=params)
+        res = await self._request("GET", "/v1/user/spot/order", params=params)
         if return_raw_response:
             return res
 
@@ -223,10 +239,13 @@ class BitbankRestClient(ExchangeClientBase):
         self._order_cache[data.order_id] = data
         asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (sent)
 
+    async def amend_order(*args, **kwargs):
+        raise NotImplementedError()
+
     async def fetch_open_orders(self, sym: str) -> List[Dict]:
         params = {"pair": self.as_bb_symbol(sym)}
-        res = await self._request("GET", "/user/spot/active_orders", params=params)
-        return res["data"]["orders"]
+        res = await self._request("GET", path="/v1/user/spot/active_orders", params=params)
+        return res
 
     async def fetch_transactions(
         self,
@@ -243,8 +262,16 @@ class BitbankRestClient(ExchangeClientBase):
             params["since"] =  int(since.timestamp() * 1000)  # unixtime[ms]
         if since is not None:
             params["end"] =  int(end.timestamp() * 1000)  # unixtime[ms]
-        res = await self._request("GET", "/user/spot/trade_history", params=params)
-        return res["data"]["trades"]
+        res = await self._request("GET", "/v1/user/spot/trade_history", params=params)
+        return res
+
+    async def fetch_open_positions(self):
+        res = await self._request("GET", path="/v1/user/margin/positions")
+        return res["data"]
+
+    async def fetch_account_balance(self):
+        res = await self._request("GET", path="/v1/user/assets")
+        return res["data"]
 
     def _convert_order_status(self, status: str) -> OrderStatus:
         mapping = {

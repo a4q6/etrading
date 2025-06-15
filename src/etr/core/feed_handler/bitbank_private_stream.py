@@ -41,7 +41,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         # auth & endpoint
         self.ws_url = "wss://stream.bitbank.cc/socket.io/?EIO=4&transport=websocket"
         self.api_key = api_key
-        self.api_secret = api_secret
+        self.api_secret = api_secret.encode()
         self.time_window = time_window
 
         # logger
@@ -59,7 +59,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         path = '/v1/user/subscribe'
         message = f"{nonce}{self.time_window}{path}"
         signature = hmac.new(
-            self.api_secret.encode(),
+            self.api_secret,
             message.encode(),
             hashlib.sha256
         ).hexdigest()
