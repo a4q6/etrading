@@ -22,9 +22,9 @@ if __name__ == "__main__":
     strategy = TOD_v1(
         venue="coincheck",
         entry_config=[
-            {"sym": "XRPJPY", "start": datetime.time(1, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 3, "spread_filter": 50},
-            {"sym": "XRPJPY", "start": datetime.time(7, 0), "holding_minutes": 60 * 5 + 30, "sl_level": 300, "side": 1, "amount": 3, "spread_filter": 50},
-            {"sym": "XRPJPY", "start": datetime.time(16, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 3, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(1, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(7, 0), "holding_minutes": 60 * 5 + 30, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(16, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 5, "spread_filter": 50},
         ],
         client=client, 
         log_file="tod_v1.log")
@@ -44,8 +44,8 @@ if __name__ == "__main__":
         asyncio.create_task(client.loop_fetch_transactions())
 
         now = pd.Timestamp.today()
-        stop = (now + pd.Timedelta("1d")).ceil("1d")
-        await asyncio.sleep((stop - now).total_seconds())
+        # stop = (now + pd.Timedelta("1d")).ceil("1d")
+        await asyncio.sleep(1 * 60 * 24 * 365 * 10)
 
     # start main logic
     async def main():
