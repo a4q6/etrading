@@ -22,9 +22,9 @@ if __name__ == "__main__":
     strategy = TOD_v1(
         venue="coincheck",
         entry_config=[
-            {"sym": "XRPJPY", "start": datetime.time(1, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
-            {"sym": "XRPJPY", "start": datetime.time(7, 0), "holding_minutes": 60 * 5 + 30, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
-            {"sym": "XRPJPY", "start": datetime.time(16, 30), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 5, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(1, 29), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(6, 59), "holding_minutes": 60 * 5 + 30, "sl_level": 300, "side": 1, "amount": 10, "spread_filter": 50},
+            {"sym": "XRPJPY", "start": datetime.time(16, 29), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 5, "spread_filter": 50},
         ],
         client=client, 
         log_file="tod_v1.log")
