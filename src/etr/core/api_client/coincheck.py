@@ -222,7 +222,7 @@ class CoincheckRestClient(ExchangeClientBase):
                     error = await response.text()
                     self.logger.warning(f"Failed to check order_id = {order_id}: {response.status} - {error}")
 
-    async def fetch_transactions(self, return_raw_response=False):
+    async def fetch_transactions(self, return_raw_response=False, logging=True):
         path = f"/api/exchange/orders/transactions"
         url = self.uri + path
         headers = self._create_headers(url)
@@ -235,10 +235,12 @@ class CoincheckRestClient(ExchangeClientBase):
             self._transaction_cache = {k: t for k, t in self._transaction_cache.items() if t_theta < t.timestamp}
 
         async with aiohttp.ClientSession() as session:
-            self.logger.info(f"Requesting latest transactions...")
+            if logging:
+                self.logger.info(f"Requesting latest transactions...")
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
-                    self.logger.info(f"Received transactions")
+                    if logging:
+                        self.logger.info(f"Received transactions")
                     data = await response.json()
                     if return_raw_response:
                         return data
@@ -298,7 +300,7 @@ class CoincheckRestClient(ExchangeClientBase):
 
     async def loop_fetch_transactions(self, update_interval=10):
         while True:
-            await self.fetch_transactions()
+            await self.fetch_transactions(logging=False)
             now = pd.Timestamp.now(tz="UTC")
             next_time = now.ceil(f"{update_interval}s")
             sleep_duration = (next_time - now).total_seconds()
