@@ -61,7 +61,7 @@ def load_data(
     # search files
     if isinstance(date, list) and len(date) == 2:
         dates = pd.date_range(*date).strftime("%Y-%m-%d")
-        latest_date = pd.Timestamp(dates[1])
+        latest_date = pd.Timestamp(dates[-1])
         files = []
         for ymd in dates:
             files += glob(hdb_dir.joinpath(table).joinpath(venue).joinpath(ymd).joinpath(symbol).joinpath("*.parquet").as_posix())
@@ -74,7 +74,7 @@ def load_data(
     latest_data = pd.DataFrame()
     if pd.Timestamp.today(tz="UTC").floor("D").tz_convert(None) <= latest_date:
         assert all(arg != "*" for arg in [venue, symbol]), "wildcard specification is not allowed for intraday data."
-        logger.info(f"Loading log ticker for {table}-{venue}-{symbol}...")
+        logger.info(f"Loading log ticker for ({table}, {venue}, {symbol}) ...")
         tp_names = VENUE_TO_TP.get(venue)
         tp_files = [tp_dir.joinpath(fname.format(symbol)) for fname in tp_names if tp_dir.joinpath(fname.format(symbol)).exists()]
         assert venue is not None, f"TP file of '{venue}' is not available or registered to mapping table."

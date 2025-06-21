@@ -97,8 +97,7 @@ def _fifo_transaction_matching(transactions: np.ndarray):
 
     return res
 
-
-def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFrame:
+def _calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFrame:
     # convert to DataFrame
     if isinstance(trades, List):
         trades_df = pd.DataFrame([asdict(trd) for trd in trades])
@@ -128,7 +127,7 @@ def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFram
     tab["amount"] = tab[["rinc_amount", "rdec_amount"]].abs().min(axis=1)
     tab["side"] = np.sign(tab.rinc_amount)
     tab["pl_bp"] = (tab.rdec_price / tab.rinc_price - 1) * tab.side * 1e4
-    tab["pl"] = tab.pl_bp * tab.amount
+    tab["pl"] = tab.pl_bp * (tab.amount * tab.rinc_price) / 1e4
     tab["sym"] = trades_df.sym.iloc[0]
     tab["horizon"] = (tab.rdec_timestamp - tab.rinc_timestamp).dt.total_seconds()
     
@@ -137,16 +136,18 @@ def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFram
         tab[["rinc_timestamp", "amount", "side"]].rename({"rinc_timestamp": "timestamp"}, axis=1).set_index("timestamp").prod(axis=1),
         tab[["rdec_timestamp", "amount", "side"]].rename({"rdec_timestamp": "timestamp"}, axis=1).set_index("timestamp").prod(axis=1).mul(-1)
     ]).sort_index().rename("position").reset_index().dropna().set_index("timestamp").position.cumsum()
-    
     tab["pos_before_rinc"] = pos.asof(tab.rinc_timestamp).values - tab[["amount", "side"]].prod(axis=1).values
     tab["pos_before_rdec"] = pos.asof(tab.rdec_timestamp).values + tab[["amount", "side"]].prod(axis=1).values
+
+    # add modelID + processID
+    tab = tab.join(trades.set_index("order_id")[["model_id", "process_id"]], on="rinc_order_id")
     
     # remove cols
     tab = tab.drop(["rdec_amount", "rinc_amount", "rdec_id", "rinc_id"], axis=1)
     
     # alignment
     tab = tab[[
-        "rinc_timestamp", "rdec_timestamp", "sym", "side", "rinc_price", "rdec_price", "pl_bp", "amount", "pl", "horizon", 
+        "rinc_timestamp", "rdec_timestamp", "sym", "side", "rinc_price", "rdec_price", "pl_bp", "amount", "pl", "horizon", "model_id", "process_id",
         "pos_before_rinc", "pos_before_rdec", "rinc_order_type", "rdec_order_type", "rinc_order_id", "rdec_order_id", "rinc_trade_id", "rdec_trade_id"
     ]].rename({"rinc_timestamp": "timestamp"}, axis=1)
     
@@ -154,3 +155,12 @@ def calc_matching_table(trades: Union[List[Trade], pd.DataFrame]) -> pd.DataFram
     tab.attrs = {"venue": trades_df.venue.iloc[0], "model_id": trades_df.model_id.iloc[0], "process_id": trades_df.process_id.iloc[0]}
     
     return tab
+
+def calc_matching_table(trades) -> pd.DataFrame:
+    """Run FIFO matching foreach (model_id, process_id, sym, venue).
+    """
+    res = pd.concat(
+        _calc_matching_table(df)
+        for _, df in trades.groupby(["sym", "venue", "model_id", "process_id"])
+    ).sort_values("timestamp").reset_index(drop=True)
+    return res
