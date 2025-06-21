@@ -90,6 +90,7 @@ class TOD_v1(StrategyBase):
                     if config["next_exit_time"] + datetime.timedelta(minutes=10) < msg["timestamp"]:
                         config["next_entry_time"] = self.next_occurrence(given_dt=msg["timestamp"], target_time=config["start"])
                         config["next_exit_time"] = config["next_entry_time"] + datetime.timedelta(minutes=config["holding_minutes"])
+                        self.logger.info(f"Update next entry/exit time: {config['next_entry_time']} - {config['next_exit_time']}")
                     if config["sym"] != sym:
                         self.logger.warning(f"skip entry for {msg['timestamp']}")
                         continue
@@ -105,6 +106,8 @@ class TOD_v1(StrategyBase):
                                 order_type=OrderType.Market, src_type=dtype, src_id=msg["universal_id"], src_timestamp=msg["timestamp"], misc=f"entry {misc}"
                             )
                             self.logger.info(f"Entry Order Info:\n{config['entry_order']}")
+                        else:
+                            self.logger.info(f"Skip entry, too much spread: {msg} ")
 
                     # SL
                     if (config["entry_order"] is not None) and (config["exit_order"] is None):
