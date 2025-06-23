@@ -164,6 +164,10 @@ class Order:
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
             data["src_timestamp"] = data["src_timestamp"].isoformat()
         return data
+    
+    @property
+    def is_live(self):
+        return (self.executed_amount < self.amount) and (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
 
     @staticmethod
     def null_order() -> 'Order':

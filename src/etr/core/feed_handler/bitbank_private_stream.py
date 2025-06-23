@@ -43,6 +43,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self.api_key = api_key
         self.api_secret = api_secret.encode()
         self.time_window = time_window
+        self._running = False
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -79,6 +80,27 @@ class BitbankPrivateStreamClient(SubscribeCallback):
                 res = await response.json()
                 self.token_info = res["data"]
                 return self.token_info["pubnub_channel"], self.token_info["pubnub_token"]
+            
+    async def keep_token_alive(self, interval_sec: int = 300):
+        """トークン期限切れを防ぐために定期再接続"""
+        while self._running:
+            await asyncio.sleep(interval_sec)
+            self.logger.info("[Token Refresh] Proactively reconnecting...")
+            try:
+                self.pubnub.unsubscribe().channels([self.channel]).execute()
+            except Exception as e:
+                self.logger.warning(f"[Token Refresh] Unsubscribe failed: {e}")
+            await self.connect()
+
+    async def start(self):
+        """接続・イベント処理・トークン更新を一括開始"""
+        self._running = True
+        asyncio.create_task(self._process_events())
+        asyncio.create_task(self.keep_token_alive(300))  # 5分ごとに再接続
+
+    async def close(self):
+        self._running = False
+        self.pubnub.unsubscribe().channels([self.channel]).execute()
 
     async def connect(self):
         self.channel, self.token = await self.get_token_and_channel()
@@ -115,7 +137,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
 
     async def _process_events(self):
         """PubNubイベント処理の非同期ループ"""
-        while True:
+        while self._running:
             data = await self.event_queue.get()
             event_type = data.get("method")
             event_msg = data.get("params")
@@ -230,3 +252,18 @@ class BitbankPrivateStreamClient(SubscribeCallback):
             "CANCELED_PARTIALLY_FILLED": OrderStatus.Canceled,
         }
         return mapping.get(status.upper(), None)
+
+if __name__ == "__main__":
+    async def main():
+        publisher = LocalWsPublisher(port=8765)
+        client = BitbankPrivateStreamClient(publisher=publisher)
+        try:
+            await asyncio.gather(
+                publisher.start(),
+                client.start(),
+            )
+        except KeyboardInterrupt:
+            print("Disconnected")
+            asyncio.run(client.close())
+    
+    asyncio.run(main())

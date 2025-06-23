@@ -27,6 +27,7 @@ class BacktestClient(ExchangeClientBase):
         self.cancel_order_message: Dict[str, Order] = {}
         self.filled_orders_message: Dict[str, Order] = {}
         self.open_limit_orders: Dict[str, Order] = {}
+        self.pending_limit_orders: Dict[str, Order] = {}
         self.open_stop_orders: Dict[str, Order] = {}
         self.open_market_orders: Dict[str, Order] = {}
         self.closed_pnl = 0
@@ -74,7 +75,7 @@ class BacktestClient(ExchangeClientBase):
         if order_type == OrderType.Market:
             self.open_market_orders[order_info.order_id] = order_info
         elif order_type == OrderType.Limit:
-            self.open_limit_orders[order_info.order_id] = order_info
+            self.pending_limit_orders[order_info.order_id] = order_info
         self.new_order_message[order_info.order_id] = deepcopy(order_info)
         return order_info
 
@@ -88,7 +89,7 @@ class BacktestClient(ExchangeClientBase):
         misc=None,
         **kwargs
     ) -> Order:
-        oinfo = self.open_limit_orders.pop(order_id)
+        oinfo = self.open_limit_orders[order_id]
         oinfo.timestamp = timestamp
         oinfo.src_type = src_type
         oinfo.src_timestamp = src_timestamp
@@ -129,6 +130,11 @@ class BacktestClient(ExchangeClientBase):
 
     async def on_message(self, msg: Dict) -> None:
         dtype: str = msg.get("_data_type")
+
+        self.open_limit_orders.update(self.pending_limit_orders)
+        self.pending_limit_orders = {}
+        self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if o.order_status not in (OrderStatus.Canceled, OrderStatus.Filled)}
+
         if dtype.startswith("BT_"):
             # Check Market Orders
             if dtype == "BT_Rate" and msg.get("venue") == self.venue:
@@ -152,10 +158,10 @@ class BacktestClient(ExchangeClientBase):
             elif dtype == "BT_MarketTrade" and msg.get("venue") == self.venue:
                 # Check Limit Orders
                 sym = msg.get("sym")
-                filled_ids = []
+                # filled_ids = []
                 for oid, o in self.open_limit_orders.items():
                     if o.sym == sym:
-                        if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):
+                        if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):  # [NOTE]
                             o.executed_amount = o.amount
                             o.order_status = OrderStatus.Filled
                             o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
@@ -166,8 +172,8 @@ class BacktestClient(ExchangeClientBase):
                             self.transactions.append(t)
                             await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
                             await self.strategy.on_message(o.to_dict(to_string_timestamp=False))
-                            filled_ids.append(oid)
-                self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if oid not in filled_ids}
+                            # filled_ids.append(oid)
+                self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if o.order_status not in (OrderStatus.Canceled, OrderStatus.Filled)}
             elif dtype == "BT_MarketBook":
                 pass  # check market orders
 
