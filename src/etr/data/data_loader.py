@@ -16,6 +16,7 @@ VENUE_TO_TP = {
     "bitflyer": ["TP-BitFlyerSocketClient-{}.log"],
     "coincheck": ["TP-CoincheckSocketClient-{}.log", "TP-CoincheckRestClient-{}.log"],
     "bitbank": ["TP-BitBankSocketClient-{}.log"],
+    "binance": ["TP-BinanceSocketClient-{}.log", "TP-BinanceRestEoption-{}.log"]
 }
 
 
