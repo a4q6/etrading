@@ -90,13 +90,15 @@ class TOD_v1(StrategyBase):
                     if config["next_exit_time"] + datetime.timedelta(minutes=10) < msg["timestamp"]:
                         config["next_entry_time"] = self.next_occurrence(given_dt=msg["timestamp"], target_time=config["start"])
                         config["next_exit_time"] = config["next_entry_time"] + datetime.timedelta(minutes=config["holding_minutes"])
+                        config["entry_order"] = None
+                        config["exit_order"] = None
                         self.logger.info(f"Update next entry/exit time: {config['next_entry_time']} - {config['next_exit_time']}")
                     if config["sym"] != sym:
                         self.logger.warning(f"skip entry for {msg['timestamp']}")
                         continue
 
+                    # Entry
                     misc = f"{config['start']}+{config['holding_minutes']}M"
-                    # entry
                     if (config["entry_order"] is None) and (config["next_entry_time"] < msg["timestamp"] < config["next_entry_time"] + datetime.timedelta(minutes=5)):
                         if (msg["best_ask"] / msg["best_bid"] - 1) * 1e4 < config["spread_filter"]:
                             self.logger.info(f"Try sending MO for entry {misc} ...")

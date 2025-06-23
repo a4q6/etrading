@@ -27,7 +27,8 @@ if __name__ == "__main__":
             {"sym": "XRPJPY", "start": datetime.time(16, 29), "holding_minutes": 60 * 4, "sl_level": 300, "side": 1, "amount": 5, "spread_filter": 50},
         ],
         client=client, 
-        log_file="tod_v1.log")
+        log_file="tod_v1.log"
+    )
     strategy.warmup()
     client.register_strategy(strategy)
     subscriber = LocalWsClient(callbacks=[strategy.on_message], log_file="tod_v1.log")
