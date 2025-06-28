@@ -4,8 +4,5 @@ python-dotenv
 tabulate
 ta
 arch
-tensorflow
-hmac
-hashlib
 pubnub
 janus
