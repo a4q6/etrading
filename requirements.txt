@@ -7,3 +7,5 @@ arch
 tensorflow
 hmac
 hashlib
+pubnub
+janus
