@@ -8,6 +8,7 @@ from etr.core.feed_handler.gmo_crypt import GmoCryptSocketClient
 from etr.core.feed_handler.coincheck import CoincheckSocketClient
 from etr.core.feed_handler.binance import BinanceSocketClient
 from etr.core.feed_handler.binance_eoption import BinanceRestEoption
+from etr.core.feed_handler.bitbank_private_stream import BitbankPrivateStreamClient
 
 
 if __name__ == '__main__':
@@ -21,6 +22,7 @@ if __name__ == '__main__':
     coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"], publisher=publisher)
     binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
     binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
+    bitbank_private = BitbankPrivateStreamClient(publisher=publisher)
 
     async def main():
         try:
@@ -35,6 +37,7 @@ if __name__ == '__main__':
                 bitflyer_fr.start(),
                 binance.start(),
                 binance_opt.start(),
+                bitbank_private.start(),
             )
         except KeyboardInterrupt:
             print("Interrupted by user")
@@ -49,7 +52,8 @@ if __name__ == '__main__':
                 gmo_cr.close(),
                 coincheck.close(),
                 binance.close(),
-                binance_opt.close()
+                binance_opt.close(),
+                bitbank_private.close(),
             )
 
     asyncio.run(main())
