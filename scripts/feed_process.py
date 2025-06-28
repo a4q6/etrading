@@ -12,19 +12,21 @@ from etr.core.feed_handler.bitbank_private_stream import BitbankPrivateStreamCli
 
 
 if __name__ == '__main__':
-    publisher = LocalWsPublisher(port=8765)
-    bitbank = BitBankSocketClient(ccy_pairs=["btc_jpy", "xrp_jpy", "eth_jpy", "doge_jpy", "ltc_jpy", "sol_jpy"], publisher=publisher)
-    bitmex = BitmexSocketClient(ccy_pairs=["ETHUSD", "XBTUSD", "XRPUSD", "LTCUSD", "DOGEUSD", "SOLUSD", "BTCUSD"], publisher=publisher)
-    bitflyer = BitFlyerSocketClient(ccy_pairs=["FX_BTC_JPY", "BTC_JPY", "ETH_JPY", "XRP_JPY", "ETH_BTC"], publisher=publisher)
-    bitflyer_fr = BitFlyerFundingRate(ccy_pairs=["FX_BTC_JPY"])
-    gmo_fx = GmoForexSocketClient(ccy_pairs=["USD_JPY", "EUR_USD", "GBP_USD", "AUD_USD", "EUR_JPY", "GBP_JPY", "CHF_JPY", "CAD_JPY", "AUD_JPY"], publisher=publisher)
-    gmo_cr = GmoCryptSocketClient(ccy_pairs=["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"], publisher=publisher)
-    coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"], publisher=publisher)
-    binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
-    binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
-    bitbank_private = BitbankPrivateStreamClient(publisher=publisher)
 
     async def main():
+        # initialize clients
+        publisher = LocalWsPublisher(port=8765)
+        bitbank = BitBankSocketClient(ccy_pairs=["btc_jpy", "xrp_jpy", "eth_jpy", "doge_jpy", "ltc_jpy", "sol_jpy"], publisher=publisher)
+        bitmex = BitmexSocketClient(ccy_pairs=["ETHUSD", "XBTUSD", "XRPUSD", "LTCUSD", "DOGEUSD", "SOLUSD", "BTCUSD"], publisher=publisher)
+        bitflyer = BitFlyerSocketClient(ccy_pairs=["FX_BTC_JPY", "BTC_JPY", "ETH_JPY", "XRP_JPY", "ETH_BTC"], publisher=publisher)
+        bitflyer_fr = BitFlyerFundingRate(ccy_pairs=["FX_BTC_JPY"])
+        gmo_fx = GmoForexSocketClient(ccy_pairs=["USD_JPY", "EUR_USD", "GBP_USD", "AUD_USD", "EUR_JPY", "GBP_JPY", "CHF_JPY", "CAD_JPY", "AUD_JPY"], publisher=publisher)
+        gmo_cr = GmoCryptSocketClient(ccy_pairs=["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"], publisher=publisher)
+        coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"], publisher=publisher)
+        binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
+        binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
+        bitbank_private = BitbankPrivateStreamClient(publisher=publisher)
+
         try:
             await asyncio.gather(
                 publisher.start(),
@@ -39,8 +41,10 @@ if __name__ == '__main__':
                 binance_opt.start(),
                 bitbank_private.start(),
             )
+
         except KeyboardInterrupt:
             print("Interrupted by user")
+
         finally:
             print("Closing connections...")
             await asyncio.gather(
