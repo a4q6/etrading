@@ -8,6 +8,9 @@ import hashlib
 import aiohttp
 import json
 import pytz
+import logging
+import janus
+import numpy as np
 from uuid import uuid4
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -44,6 +47,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self.api_secret = api_secret.encode()
         self.time_window = time_window
         self._running = False
+        self.loop = asyncio.get_event_loop()
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -51,7 +55,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self.ticker_plant = AsyncBufferedLogger(logger_name=f"TP-BitBankPrivate-ALL", log_dir=tp_file.as_posix())
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
         self.publisher = publisher
-        self.event_queue: asyncio.Queue = asyncio.Queue()
+        self.event_queue = janus.Queue()
 
 
     async def get_token_and_channel(self) -> List[str]:
@@ -96,7 +100,8 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         """接続・イベント処理・トークン更新を一括開始"""
         self._running = True
         asyncio.create_task(self._process_events())
-        asyncio.create_task(self.keep_token_alive(300))  # 5分ごとに再接続
+        asyncio.create_task(self.connect())
+        asyncio.create_task(self.keep_token_alive(interval_sec=300))  # 5分ごとに再接続
 
     async def close(self):
         self._running = False
@@ -124,7 +129,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self.logger.info(f"[STATUS] Category: {status.category}")
         if status.category == "PNAccessDeniedCategory":
             self.logger.info("Token expired, reconnecting...")
-            asyncio.create_task(self.reconnect())
+            asyncio.run_coroutine_threadsafe(self.reconnect(), self.loop)
 
     async def reconnect(self):
         self.pubnub.unsubscribe().channels([self.channel]).execute()
@@ -132,61 +137,69 @@ class BitbankPrivateStreamClient(SubscribeCallback):
 
     def message(self, pubnub, message):
         """PubNubからのメッセージ受信時に呼ばれる（非同期キューへ）"""
-        data = json.dumps(message.message)
-        asyncio.create_task(self.event_queue.put(data))
+        data = message.message
+        self.event_queue.sync_q.put(data)
+        self.logger.debug(f"{data}")
 
     async def _process_events(self):
         """PubNubイベント処理の非同期ループ"""
         while self._running:
-            data = await self.event_queue.get()
-            event_type = data.get("method")
-            event_msg = data.get("params")
+            try:
+                data = await self.event_queue.async_q.get()
+                event_type = data.get("method")
+                event_msg = data.get("params")
 
-            if event_type == "asset_update":
-                pass
-            elif event_type == "spot_order_new":
-                await self._handle_order_message(event_msg, event_type)
-            elif event_type == "spot_order":
-                await self._handle_order_message(event_msg, event_type)
-            elif event_type == "spot_trade":
-                await self._handle_trade_message(event_msg)
-            elif event_type == "dealer_order_new":
-                pass
-            elif event_type == "margin_position_update":
-                await self._handle_position_update(event_msg)
-            else:
-                pass
+                if event_type == "asset_update":
+                    pass
+                elif event_type == "spot_order_new":
+                    await self._handle_order_message(event_msg, event_type)
+                elif event_type == "spot_order":
+                    await self._handle_order_message(event_msg, event_type)
+                elif event_type == "spot_trade":
+                    await self._handle_trade_message(event_msg)
+                elif event_type == "dealer_order_new":
+                    pass
+                elif event_type == "margin_position_update":
+                    await self._handle_position_update(event_msg)
+                else:
+                    self.logger.debug(f"{event_type} | {event_msg}")
+            except KeyboardInterrupt:
+                raise KeyboardInterrupt()
+            except Exception as e:
+                self.logger.error(f"Error while loading data -- {e}", exc_info=True)
 
     async def _handle_order_message(self, msg: List[Dict], event_type: str):
         for o in msg:
-            status = self._convert_order_status(msg["status"])
+            status = self._convert_order_status(o["status"])
             if status == OrderStatus.Canceled:
-                mkt_time = datetime.datetime.fromtimestamp(msg["canceled_at"] / 1000).replace(tzinfo=pytz.timezone("UTC"))
+                mkt_time = datetime.datetime.fromtimestamp(o["canceled_at"] / 1000)
             elif status in (OrderStatus.Partial, OrderStatus.Filled):
-                mkt_time = datetime.datetime.fromtimestamp(msg["executed_at"] / 1000).replace(tzinfo=pytz.timezone("UTC"))
-            elif msg["type"] == "stop" and msg["is_just_triggered"]:
-                mkt_time = datetime.datetime.fromtimestamp(msg["triggered_at"] / 1000).replace(tzinfo=pytz.timezone("UTC"))
+                mkt_time = datetime.datetime.fromtimestamp(o["executed_at"] / 1000)
+            elif o["type"] == "stop" and o["is_just_triggered"]:
+                mkt_time = datetime.datetime.fromtimestamp(o["triggered_at"] / 1000)
             else:
-                mkt_time = datetime.datetime.fromtimestamp(msg["ordered_at"] / 1000).replace(tzinfo=pytz.timezone("UTC"))
-            if msg["type"] in ("limit"):
-                price = msg["price"]
-            elif msg["type"] in ("market") or (msg["type"] == "stop" and status == OrderStatus.Filled):
-                price = msg["average_price"]
-            elif msg["type"] in ("stop"):
-                price = msg["trigger_price"]
+                mkt_time = datetime.datetime.fromtimestamp(o["ordered_at"] / 1000)
+            mkt_time = pytz.timezone("UTC").localize(mkt_time)
+
+            if o["type"] in ("limit"):
+                price = o["price"]
+            elif o["type"] in ("market") or (o["type"] == "stop" and status == OrderStatus.Filled):
+                price = o["average_price"]
+            elif o["type"] in ("stop"):
+                price = o["trigger_price"]
 
             order = Order(
                 timestamp=datetime.datetime.now(datetime.timezone.utc),
                 market_created_timestamp=mkt_time,
-                sym=msg["pair"].replace("_", "").upper(),
-                side=1 if msg["side"] == "buy" else -1,
+                sym=o["pair"].replace("_", "").upper(),
+                side=1 if o["side"] == "buy" else -1,
                 price=float(price),
-                amount=float(msg["executed_amount"]) + float(msg["remaining_amount"]),
-                executed_amount=float(msg["executed_amount"]),
-                order_type=msg["type"],
+                amount=float(o["executed_amount"]) + float(o["remaining_amount"]),
+                executed_amount=float(o["executed_amount"]),
+                order_type=o["type"],
                 order_status=status,
                 venue=VENUE.BITBANK,
-                order_id=str(msg["order_id"]),
+                order_id=str(o["order_id"]),
                 model_id=None,
                 process_id=None,
                 src_type=None,
@@ -201,15 +214,15 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         for trade_msg in msg:
             sym = trade_msg["pair"].replace("_", "").upper()  # "btc_jpy" → "BTCJPY"
             misc = {
-                "pnl": float(trade_msg["profit_loss"]), 
-                "interest": float(trade_msg["interest"]),
+                "pnl": float(trade_msg["profit_loss"]) if trade_msg["profit_loss"] is not None else np.nan,
+                "interest": float(trade_msg["interest"]) if trade_msg["interest"] is not None else np.nan,
                 "MT": trade_msg["maker_taker"],
-                "channel": "streaming",
+                "channel": "streaming-spot_trade",
             }
             trade = Trade(
                 timestamp=datetime.datetime.now(datetime.timezone.utc),
                 market_created_timestamp=datetime.datetime.fromtimestamp(
-                    trade_msg["timestamp"] / 1000, tz=datetime.timezone.utc
+                    trade_msg["executed_at"] / 1000, tz=datetime.timezone.utc
                 ),
                 sym=sym,
                 venue=VENUE.BITBANK,
@@ -218,7 +231,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
                 amount=float(trade_msg["amount"]),
                 order_id=str(trade_msg["order_id"]),
                 order_type=trade_msg["type"],  # "limit" or "market" or "stop"
-                trade_id=str(trade_msg["exec_id"]),
+                trade_id=str(trade_msg["trade_id"]),
                 misc=str(misc),
             )
             if self.publisher is not None: asyncio.create_task(self.publisher.send(trade.to_dict()))
@@ -230,12 +243,12 @@ class BitbankPrivateStreamClient(SubscribeCallback):
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "sym": pos["pair"].replace("_", "").upper(),
                 "venue": VENUE.BITBANK,
-                "side": +1 if pos["side"] == "long" else -1,
+                "position_side": pos["position_side"],
                 "vwap": float(pos["average_price"]),
-                "amount": float(pos["open_amount"]),
-                "locked_amount": float(pos["locked_amount"]),
-                "unrealized_fee_amount": float(pos["unrealized_fee_amount"]),
-                "unrealized_interest_amount": float(pos["unrealized_interest_amount"]),
+                "open_amount": float(pos["open"]),
+                "locked_amount": float(pos["locked"]),
+                "unrealized_fee_amount": float(pos["unrealized_fee"]),
+                "unrealized_interest_amount": float(pos["unrealized_interest"]),
                 "universal_id": uuid4().hex,
                 "_data_type": "PositionUpdate",
             }
@@ -254,14 +267,25 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         return mapping.get(status.upper(), None)
 
 if __name__ == "__main__":
+
     async def main():
         publisher = LocalWsPublisher(port=8765)
         client = BitbankPrivateStreamClient(publisher=publisher)
+        client.logger.setLevel(logging.DEBUG)
+
+        async def heartbeat():
+            while True:
+                msg = {"_data_type": "Heartbeat"}
+                await publisher.send(msg)
+                await asyncio.sleep(10)
+
         try:
             await asyncio.gather(
                 publisher.start(),
                 client.start(),
+                heartbeat(),
             )
+            await asyncio.sleep(60 * 10)
         except KeyboardInterrupt:
             print("Disconnected")
             asyncio.run(client.close())

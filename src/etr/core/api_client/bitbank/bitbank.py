@@ -6,7 +6,7 @@ import datetime
 import time
 import pandas as pd
 import asyncio
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, Tuple
 from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
@@ -19,7 +19,7 @@ from etr.core.api_client.base import ExchangeClientBase
 from etr.common.logger import LoggerFactory
 from etr.strategy.base_strategy import StrategyBase
 from etr.config import Config
-
+from .error_codes import BITBANK_ERROR_CODES
 
 
 class BitbankRestClient(ExchangeClientBase):
@@ -42,6 +42,7 @@ class BitbankRestClient(ExchangeClientBase):
         log_file: Optional[str] = None,
         **kwargs,
     ):
+        super().__init__(log_file=None)
         self.api_key = api_key
         self.api_secret = api_secret.encode()
 
@@ -59,6 +60,8 @@ class BitbankRestClient(ExchangeClientBase):
         self._order_cache: Dict[str, Order] = {}
         self._transaction_cache: Dict[str, Trade] = {}
         self.strategy: StrategyBase = None
+        self._margin_positions: Dict[Tuple[str], float] = {"initialized": False}  # sym -> (long, short)
+
 
     def _generate_signature(self, method: str, path: str, body: dict = None):
         nonce = str(int(time.time() * 1000))
@@ -70,7 +73,7 @@ class BitbankRestClient(ExchangeClientBase):
                 body_str = ""  # POSTはnonce + JSONボディ文字列を署名対象に
             else:
                 # bodyは辞書を想定し、JSON文字列化
-                body_str = json.dumps(body, separators=(",", ":"))  # 余計な空白を削除したcompact形式
+                body_str = json.dumps(body)  # 余計な空白を削除したcompact形式
             message = nonce + body_str
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
@@ -117,6 +120,7 @@ class BitbankRestClient(ExchangeClientBase):
         src_type: str,
         src_timestamp: datetime.datetime,
         src_id = None,
+        use_margin = True,
         return_raw_response=False,
         **kwargs
     ):
@@ -134,26 +138,41 @@ class BitbankRestClient(ExchangeClientBase):
             "pair": self.as_bb_symbol(sym),
             "side": "buy" if side > 0 else "sell",
             "type": order_type,
-            "amount": amount
+            "amount": str(amount)
         }
-        if order_type == OrderStatus.Stop:
-            body["trigger_price"] = price
-        elif order_type == OrderStatus.Limit:
-            body["price"] = price
+        if order_type == OrderType.Stop:
+            body["trigger_price"] = str(price)
+        elif order_type == OrderType.Limit:
+            body["price"] = str(price)
             body["post_only"] = True  # https://support.bitbank.cc/hc/ja/articles/900005145623--%E5%8F%96%E5%BC%95%E6%89%80-Post-Only%E3%81%A8%E3%81%AF%E3%81%AA%E3%82%93%E3%81%A7%E3%81%99%E3%81%8B
-        
+        if use_margin and sym in ("BTCJPY", "ETHJPY", "XRPJPY", "SOLJPY", "DOGEJPY"):
+            if self._margin_positions.get("initialized") == False:
+                await self.fetch_open_positions()
+            long, short = self._margin_positions[(sym, "long")], self._margin_positions[(sym, "short")]
+            if side > 0:
+                if amount <= short:
+                    body["position_side"] = "short"
+                else:
+                    body["position_side"] = "long"
+            elif side < 0:
+                if amount <= long:
+                    body["position_side"] = "long"
+                else:
+                    body["position_side"] = "short"
+
         # send request
         res = await self._request("POST", "/v1/user/spot/order", body=body)
         if return_raw_response:
             return res
         if res.get("success") != 1:
             self.logger.error(f"Failed to send new order (UUID = {data.universal_id})\n{res}")
-            raise RuntimeError()
+            self.logger.warning(f"Error cause: {self.get_error_cause(res)}")
+            raise RuntimeError(self.get_error_cause(res))
         res = res["data"]
 
         # update order info
         data.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
-        data.market_created_timestamp = datetime.datetime.fromtimestamp(res["ordered_at"]).replace(tzinfo=pytz.timezone("UTC"))
+        data.market_created_timestamp = pytz.timezone("UTC").localize(datetime.datetime.fromtimestamp(float(res["ordered_at"]) / 1000))
         data.order_id = str(res["order_id"])
         data.amount = float(res["remaining_amount"])
         data.executed_amount = float(res["executed_amount"])
@@ -183,32 +202,45 @@ class BitbankRestClient(ExchangeClientBase):
         src_timestamp,
         src_id=None,
         misc=None,
+        sym=None,
         return_raw_response=False,
         **kwargs
     ) -> Order:
         # async def cancel_order(self, pair: str, order_id: int):
 
         # build body
-        oinfo = deepcopy(self._order_cache[order_id])
-        body = {"pair": self.as_bb_symbol(oinfo.sym), "order_id": int(order_id)}
+        if sym is not None:
+            body = {"pair": self.as_bb_symbol(sym), "order_id": int(order_id)}
+        else:
+            oinfo = self._order_cache[order_id]
+            body = {"pair": self.as_bb_symbol(oinfo.sym), "order_id": int(order_id)}
         res = await self._request("POST", "/v1/user/spot/cancel_order", body=body)
         if return_raw_response:
             return res
-        if res.get("success") != 1:
-            self.logger.error(f"Failed to cancel order (order_id = {oinfo.order_id})\n{res}")
-        res = res["data"]
 
-        oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
-        oinfo.market_created_timestamp = datetime.datetime.fromtimestamp(res["canceled_at"]).replace(tzinfo=pytz.timezone("UTC"))
-        oinfo.order_status = OrderStatus.Canceled
-        oinfo.src_type = src_type
-        oinfo.src_id = src_id
-        oinfo.src_timestamp = src_timestamp
-        oinfo.misc = misc
-        oinfo.universal_id = uuid4().hex
-        self._order_cache[oinfo.order_id] = oinfo
-        asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store
-        return deepcopy(oinfo)
+        if res.get("success") == 1:
+            res = res["data"]
+            oinfo = deepcopy(self._order_cache[order_id])
+            oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
+            oinfo.market_created_timestamp = datetime.datetime.fromtimestamp(float(res["canceled_at"]) / 1000).replace(tzinfo=pytz.timezone("UTC"))
+            oinfo.order_status = OrderStatus.Canceled
+            oinfo.src_type = src_type
+            oinfo.src_id = src_id
+            oinfo.src_timestamp = src_timestamp
+            oinfo.misc = misc
+            oinfo.universal_id = uuid4().hex
+            self._order_cache[oinfo.order_id] = oinfo
+            asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store
+            return oinfo
+        else:
+            self.logger.warning(f"APIError: {self.get_error_cause(res)}")
+            oinfo = deepcopy(self._order_cache[order_id])
+            return oinfo
+
+    @staticmethod
+    def get_error_cause(response: dict) -> str:
+        code = response.get("data").get("code")
+        return BITBANK_ERROR_CODES.get(code)
 
     async def check_order(self, order_id: str, return_raw_response=False) -> Union[Dict, Order]:
         data = self._order_cache[order_id]
@@ -218,7 +250,7 @@ class BitbankRestClient(ExchangeClientBase):
             return res
 
         data.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
-        data.market_created_timestamp = datetime.datetime.fromtimestamp(res["ordered_at"]).replace(tzinfo=pytz.timezone("UTC"))
+        data.market_created_timestamp = datetime.datetime.fromtimestamp(float(res["ordered_at"]) / 1000).replace(tzinfo=pytz.timezone("UTC"))
         data.order_id = str(res["order_id"])
         data.amount = float(res["remaining_amount"])
         data.executed_amount = float(res["executed_amount"])
@@ -245,6 +277,8 @@ class BitbankRestClient(ExchangeClientBase):
     async def fetch_open_orders(self, sym: str) -> List[Dict]:
         params = {"pair": self.as_bb_symbol(sym)}
         res = await self._request("GET", path="/v1/user/spot/active_orders", params=params)
+        if res.get("success") != 1:
+            self.logger.warning(f"APIError: {self.get_error_cause(res)}")
         return res
 
     async def fetch_transactions(
@@ -267,10 +301,16 @@ class BitbankRestClient(ExchangeClientBase):
 
     async def fetch_open_positions(self):
         res = await self._request("GET", path="/v1/user/margin/positions")
+        if res.get("success") != 1:
+            self.logger.error(f"Failed to fetch open positions.")
+            self.logger.warning(f"Error cause: {self.get_error_cause(res)}")
+        self._margin_positions = {(self.as_common_symbol(r["pair"]), r["position_side"]): float(r["open_amount"]) for r in res["data"]["positions"]}
         return res["data"]
 
     async def fetch_account_balance(self):
         res = await self._request("GET", path="/v1/user/assets")
+        if res.get("success") != 1:
+            self.logger.warning(f"APIError: {self.get_error_cause(res)}")
         return res["data"]
 
     def _convert_order_status(self, status: str) -> OrderStatus:
@@ -292,19 +332,20 @@ class BitbankRestClient(ExchangeClientBase):
         if dtype == "Order":
             msg.pop("_data_type")
             oinfo = Order(**msg)
-            if oinfo.misc != "streaming-spot_order_new":
-                # skip new order message and only take update messages
-                if oinfo.order_id in self._order_cache:
-                    oinfo_old = self._order_cache[oinfo.order_id]
-                    oinfo.model_id = oinfo_old.model_id
-                    oinfo.process_id = oinfo_old.process_id
-                    oinfo.src_type = "Order"
-                    oinfo.src_id = oinfo.universal_id
-                    oinfo.src_timestamp = oinfo.timestamp
-                    oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
-                    self._order_cache[oinfo.order_id] = deepcopy(oinfo)
-                    await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
-                    asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store in TP
+            if oinfo.order_id in self._order_cache:
+                oinfo_old = self._order_cache[oinfo.order_id]
+                oinfo.model_id = oinfo_old.model_id
+                oinfo.process_id = oinfo_old.process_id
+                oinfo.src_type = "Order"
+                oinfo.src_id = oinfo.universal_id
+                oinfo.src_timestamp = oinfo.timestamp
+                oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
+                self._order_cache[oinfo.order_id] = deepcopy(oinfo)
+                self.logger.info(f"Order status updated, order_id = {oinfo.order_id}, status = {oinfo.order_status}")
+                await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
+                asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store in TP
+            else:
+                self.logger.info(f"No cache found, skip order update message for order_id = {oinfo.order_id}")
 
         if dtype == "Trade":
             msg.pop("_data_type")
@@ -320,6 +361,10 @@ class BitbankRestClient(ExchangeClientBase):
                 await self.strategy.on_message(trade.to_dict(to_string_timestamp=False))  # invoke strategy
                 asyncio.create_task(self.ticker_plant.info(json.dumps(trade.to_dict())))  # store in TP
                 self.logger.info(f"Found new transaction: \n{trade.to_dict()}")
+
+        if dtype == "PositionUpdate":
+            self._margin_positions[(msg["sym"], msg["position_side"])] = msg["open_amount"]
+            self.logger.info(f'Updated margin position cache -- {msg}')
 
         # pop older cache
         t_theta = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=14)

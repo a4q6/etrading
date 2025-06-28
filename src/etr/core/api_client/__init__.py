@@ -1,2 +1,2 @@
 from .coincheck import CoincheckRestClient
-from .bitbank import BitbankRestClient
+from .bitbank.bitbank import BitbankRestClient

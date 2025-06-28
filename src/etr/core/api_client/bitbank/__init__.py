@@ -1,0 +1,1 @@
+from .bitbank import BitbankRestClient

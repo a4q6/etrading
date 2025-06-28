@@ -36,7 +36,7 @@ class ExchangeClientBase(ABC):
         self.logger = LoggerFactory().get_logger(logger_name=logger_name, log_file=log_file)
         self.closed_pnl = 0
         self.open_pnl = {}
-        self.positions = {}  # {sym: (amount, vwap)}
+        self.positions = {}  # {sym: (vwap, amount)}
         self.strategy: StrategyBase = None
 
     def register_strategy(self, strategy: StrategyBase):
@@ -105,10 +105,11 @@ class ExchangeClientBase(ABC):
         else:
             exec_amount = (trade.amount * trade.side)
             cur_size = self.positions[sym][1]
+            cur_side = np.sign(cur_size)
             new_size = cur_size + exec_amount
             if round(new_size, 7) == 0:
                 # close
-                self.closed_pnl += trade.side * (trade.price - self.positions[sym][0]) * trade.amount
+                self.closed_pnl += cur_side * (trade.price - self.positions[sym][0]) * trade.amount
                 self.positions[sym] = [np.nan, 0]
             elif exec_amount * cur_size > 0:
                 # same side
@@ -119,7 +120,14 @@ class ExchangeClientBase(ABC):
                 self.positions[sym] = [trade.price, new_size]
             elif cur_size * exec_amount < 0 and new_size * cur_size > 0:
                 # partial close
-                self.closed_pnl += trade.side * (trade.price - self.positions[sym][0]) * trade.amount
+                self.closed_pnl += cur_side * (trade.price - self.positions[sym][0]) * trade.amount
                 self.positions[sym][1] = new_size
             else:
                 raise ValueError()
+            
+    def current_position(self, sym: str) -> float:
+        amt = self.positions.get("sym", 0)
+        if isinstance(amt, list):
+            return amt[-1]
+        else:
+            return amt
