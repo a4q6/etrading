@@ -42,20 +42,22 @@ class BitbankRestClient(ExchangeClientBase):
         log_file: Optional[str] = None,
         **kwargs,
     ):
-        super().__init__(log_file=None)
         self.api_key = api_key
         self.api_secret = api_secret.encode()
 
         # logger
         tp_file = Path(Config.TP_DIR)
         self.ticker_plant = AsyncBufferedLogger(
-            logger_name=f"TP-BitBankPrivate-ALL",
+            logger_name=f"TP-BitBankPrivateRest-ALL",
             log_dir=tp_file.as_posix()
         )
         logger_name = "bb-client" if log_file is None else log_file.split("/")[-1].split(".")[0]
         if log_file is not None:
             log_file = Path(Config.LOG_DIR).joinpath(log_file).as_posix()
         self.logger = LoggerFactory().get_logger(logger_name=logger_name, log_file=log_file)
+        self.closed_pnl = 0
+        self.open_pnl = {}
+        self.positions = {}  # {sym: (vwap, amount)}
 
         self._order_cache: Dict[str, Order] = {}
         self._transaction_cache: Dict[str, Trade] = {}
@@ -79,7 +81,6 @@ class BitbankRestClient(ExchangeClientBase):
             raise ValueError(f"Unsupported HTTP method: {method}")
 
         # build signature
-        self.logger.info(message)
         signature = hmac.new(self.api_secret, message.encode(), hashlib.sha256).hexdigest()
         headers = {
             "ACCESS-KEY": self.api_key,
@@ -95,7 +96,6 @@ class BitbankRestClient(ExchangeClientBase):
             body = params  # move parameters to body to be embbeded in signature
             params = {}
         url = self.BASE_URL + path
-        self.logger.info(f"{url} {path} {params} {body}")
         headers = self._generate_signature(method=method, path=path, body=body)
         async with aiohttp.ClientSession() as session:
             if method.upper() == "GET":

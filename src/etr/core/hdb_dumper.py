@@ -1,15 +1,16 @@
 import numpy as np
 import pandas as pd
 import json
+import time
 from pathlib import Path
 from multiprocessing import Process
-from typing import Optional
+from typing import Optional, List, Dict
 from glob import glob
 from tqdm.auto import tqdm
 from tabulate import tabulate
-from etr.data.data_loader import list_hdb
-import time
 
+from etr.data.data_loader import list_hdb
+from etr.core.datamodel import VENUE
 from etr.core.notification.discord import send_discord_webhook
 from etr.config import Config
 from etr.common.logger import LoggerFactory
@@ -29,8 +30,26 @@ class HdbDumper:
         "BinanceSocketClient": ["Rate", "MarketTrade"],
         "BinanceRestEoption": ["ImpliedVolatility"],
         "CoincheckRestClient": ["Order", "Trade"],
-        "BitBankPrivate": ["Order", "Trade", "PositionUpdate"],
+        "BitBankPrivateStream": ["Order", "Trade", "PositionUpdate"],
+        "BitBankPrivateRest": ["Order", "Trade", "PositionUpdate"],
     }
+    venue_map = {
+        "BitmexSocketClient": VENUE.BITMEX,
+        "BitBankSocketClient": VENUE.BITBANK,
+        "BitFlyerSocketClient": VENUE.BITFLYER,
+        "GmoForexSocketClient": VENUE.GMO,
+        "GmoCryptSocketClient": VENUE.GMO,
+        "CoincheckSocketClient": VENUE.COINCHECK,
+        "BitFlyerFundingRate": VENUE.BITFLYER,
+        "BinanceSocketClient": VENUE.BINANCE,
+        "BinanceRestEoption": VENUE.BINANCE,
+        "CoincheckRestClient": VENUE.COINCHECK,
+        "BitBankPrivateStream": VENUE.BITBANK,
+        "BitBankPrivateRest": VENUE.BITBANK,
+    }
+    mtp_pairs = [
+        ("BitBankPrivateStream", "BitBankPrivateRest"),
+    ]
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):
         self.hdb_dir = Path(hdb_dir)
@@ -38,44 +57,58 @@ class HdbDumper:
         self.logger = LoggerFactory().get_logger(logger_name=self.__class__.__name__, log_file=Path(Config.LOG_DIR).joinpath("hdb_dumper.log"))
         self.process: Optional[Process] = None
 
+        # validate MTP config
+        for tp_names in self.mtp_pairs:
+            # assert have same table list
+            table_sets = [set(self.table_list[tp_name]) for tp_name in tp_names]
+            assert all(table_sets[0] == sets for sets in table_sets), f"Non-unique table list detected for {tp_names}"
+            # assert same venue
+            assert len(set(self.venue_map[tp_name] for tp_name in tp_names)) == 1, f"Non-unique venue mapping detected for {tp_names}"
+
     def dump_to_hdb(self, log_file: Path, skip_if_exists: bool = True) -> None:
 
         self.logger.info(f"Start extraction for '{Path(log_file).name}'")
-        # inspect first 100 lines
         logger_name = Path(log_file).name.split("-")[1]
         date = Path(log_file).name.split(".")[-1]
         sym_from_fname = Path(log_file).name.split("-")[2].split(".log")[0].replace("_", "").upper()
-        first_records = []
-        with open(log_file, "r", encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                json_part = line.split("||", 1)[-1]
-                data = json.loads(json_part)
-                first_records.append([data.get("venue"), data.get("sym")])
-                if i > 100:
-                    break
-        first_records = pd.DataFrame(first_records, columns=["venue", "sym"]).drop_duplicates().assign(sym=sym_from_fname)
-        first_records = first_records.dropna()
 
         # check existing files
         exists_all = True
-        for venue, _ in first_records.values:
-            for table in self.table_list[logger_name]:
-                path = self.build_path(table, date, venue, sym_from_fname)
-                self.logger.info(f"{path.exists()} -- {path}")
-                exists_all = exists_all and path.exists()
+        venue = self.venue_map.get(logger_name)
+        for table in self.table_list[logger_name]:
+            path = self.build_path(table, date, venue, sym_from_fname)
+            self.logger.info(f"{path.exists()} -- {path}")
+            exists_all = exists_all and path.exists()
         if exists_all and skip_if_exists:
             self.logger.info(f"Files are ready for '{Path(log_file).name}', skip processing")
             return
 
         # Proceed to extraction
-        records = {table: [] for table in self.table_list[logger_name]}
-        with open(log_file, "r", encoding="utf-8") as f:
-            for i, line in tqdm(enumerate(f)):
-                json_part = line.split("||", 1)[-1]
-                data = json.loads(json_part)
-                records[data.get("_data_type")].append(data)
+        # check if MTP or not
+        linked_tps = None
+        for mtp_pair in self.mtp_pairs:
+            if logger_name in mtp_pair:
+                linked_tps = mtp_pair
+                self.logger.info(f"Found multi TP file: {linked_tps}")
+                break
 
-        # Read and dump
+        # read log file
+        if linked_tps is None:
+            # Single TP
+            records = self.read_tp_file(log_file)
+        else:
+            # Multi TP
+            records = self.read_tp_file(log_file)
+            for tp_name in linked_tps:
+                if tp_name == logger_name:
+                    continue
+                add_log_file = Path(log_file).as_posix().replace(logger_name, tp_name)
+                if Path(add_log_file).exists():
+                    add_records = self.read_tp_file(add_log_file)
+                    for k, rec in add_records.items():
+                        records[k] += rec
+
+        # select out table records and dump
         for table, lines in records.items():
             if len(lines) == 0:
                 self.logger.info(f"No record found for '{table}'")
@@ -87,26 +120,16 @@ class HdbDumper:
                 df[col] = pd.to_datetime(df[col])
 
             # Case: single file
-            if sym_from_fname == "ALL":
-                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
+            self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
+            if df.shape[0] > 0:
+                if sym_from_fname != "ALL":
+                    assert df.sym.nunique() == 1, f"sym is not unique in {file}"
                 path = self.build_path(table, date, venue, sym_from_fname)
-                if df.shape[0] > 0:
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_parquet(path)
-                    self.logger.info(f"Saved '{path}'")
-                else:
-                    self.logger.info(f"No record, skipped '{path}'")
-            # Case: file split by sym
+                path.parent.mkdir(parents=True, exist_ok=True)
+                df.to_parquet(path)
+                self.logger.info(f"Saved '{path}'")
             else:
-                self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
-                if df.shape[0] > 0:
-                    assert df.sym.nunique() == 1 and df.sym.dropna().iloc[0] == sym_from_fname, "'sym' column doesn't match with `sym` of TP file"
-                    path = self.build_path(table, date, venue, sym_from_fname)
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_parquet(path)
-                    self.logger.info(f"Saved '{path}'")
-                else:
-                    self.logger.info(f"No record, skipped '{path}'")
+                self.logger.info(f"No record, skipped '{path}'")
 
     def build_path(self, table, date, venue, sym) -> Path:
         ymd = pd.Timestamp(date).strftime("%Y-%m-%d")
@@ -123,6 +146,16 @@ class HdbDumper:
             return files.sort_values("date").reset_index(drop=True)
         else:
             return pd.DataFrame(columns=["fname", "logger_name", "date", "path"])
+
+    def read_tp_file(self, log_file) -> Dict[str, List]:
+        logger_name = Path(log_file).name.split("-")[1]
+        records = {table: [] for table in self.table_list[logger_name]}
+        with open(log_file, "r", encoding="utf-8") as f:
+            for i, line in tqdm(enumerate(f)):
+                json_part = line.split("||", 1)[-1]
+                data = json.loads(json_part)
+                records[data.get("_data_type")].append(data)
+        return records
 
     def dump_all(self, n_days=10, skip_if_exists=True):
         files = self.list_log_files()
@@ -154,6 +187,7 @@ class HdbDumper:
                 else:
                     self.logger.info(f"No HDB file found for {prev_date}")
 
+                # sleep
                 now = pd.Timestamp.today(tz="UTC")
                 next_run = now.ceil("1D").replace(hour=int(trigger_time_utc[:2]), minute=int(trigger_time_utc[3:6]))
                 total_seconds = (next_run - now).total_seconds()
@@ -168,4 +202,4 @@ class HdbDumper:
 
 
 if __name__ == '__main__':
-    HdbDumper().start_hdb_loop()
+    HdbDumper().dump_to_hdb("data/tp/TP-BitBankPrivateStream-ALL.log.2025-06-28")
