@@ -35,7 +35,9 @@ def read_log_ticker(
                 records.append(data)
 
     # convert as table
-    data = pd.DataFrame(records).drop("_data_type", axis=1)
+    data = pd.DataFrame(records)
+    if "_data_type" in data:
+        data = data.drop("_data_type", axis=1)
     for col in data.columns[data.columns.str.contains("time")]:
         data[col] = pd.to_datetime(data[col])
 

@@ -23,7 +23,6 @@ if __name__ == "__main__":
         exit_offset=0, 
         dev_window=datetime.timedelta(minutes=10),
         reference=[('gmo', 'BTCJPY'), ('bitflyer', 'BTCJPY'), ('bitmex', 'XBTUSD'), ('binance', "BTCUSDT")],
-        position_horizon=60,
         vol_threshold=50,
         decimal=0,
         client=client,
@@ -31,7 +30,7 @@ if __name__ == "__main__":
     )
     client.register_strategy(strategy)
     strategy.warmup()
-    subscriber = LocalWsClient(callbacks=[strategy.on_message, client.on_message], log_file="dev_mm.log")
+    subscriber = LocalWsClient(callbacks=[client.on_message, strategy.on_message], log_file="dev_mm.log")
 
     # ws subsciber loop
     async def start_strategy():

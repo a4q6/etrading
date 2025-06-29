@@ -77,6 +77,7 @@ class DevMMv1(StrategyBase):
         self.last_update_gmid_hist = datetime.datetime(2000, 1, 1, tzinfo=pytz.timezone("UTC"))
         self.gmid_std = np.nan
         self._vol_cache = []
+        self._log_timestamp = datetime.datetime.now()
 
 
     def warmup(self, now = datetime.datetime.now(datetime.timezone.utc)):
@@ -85,9 +86,8 @@ class DevMMv1(StrategyBase):
             raise RuntimeError("Do not turn on strategy during EoD process.")
 
         self.logger.info("Warming up DevMM strategy. Loading ratest rates...")
-        rates = pd.concat([
-                load_data(date=now.date(), table="Rate", venue=venue, symbol=symbol)
-                for venue, symbol in self.reference
+        rates = pd.concat(
+            [load_data(date=now.date(), table="Rate", venue=venue, symbol=symbol) for venue, symbol in self.reference
             ] + [load_data(date=now.date(), table="Rate", venue="gmo", symbol="USDJPY")
             ] + [load_data(date=now.date(), table="Rate", venue=self.venue, symbol=self.sym)]
         )
@@ -96,6 +96,7 @@ class DevMMv1(StrategyBase):
         rates_msg = rates.to_dict(orient="records")
         for msg in rates_msg:
             self._update_deviation(msg)
+        self.logger.info("Warmup done.")
 
     @property
     def cur_pos(self):
@@ -112,15 +113,20 @@ class DevMMv1(StrategyBase):
     async def on_message(self, msg: Dict):
         dtype = msg.get("_data_type")
 
+        if self._log_timestamp + datetime.timedelta(seconds=60) < datetime.datetime.now():
+            self._log_timestamp = datetime.datetime.now()
+            self.logger.info("heartbeat")
+
         if dtype == "Order":
             # update order status
             if msg["order_id"] == self.entry_order.order_id:
                 msg.pop("_data_type")
                 self.entry_order = Order(**msg)
-                self.logger.info("ENTRY LIMIT ORDER FILLED")
                 self.logger.info(f"Updated entry order status || {self.entry_order.to_dict()}")
-                self.logger.info(f"Place exit limit order")
-                await self._place_exit_order(msg, dtype)
+                if self.entry_order.order_status in [OrderStatus.Filled]:
+                    self.logger.info("ENTRY LIMIT ORDER FILLED")
+                    self.logger.info(f"Place exit limit order")
+                    await self._place_exit_order(msg, dtype)
                 
             if msg["order_id"] == self.exit_order.order_id:
                 msg.pop("_data_type")
@@ -149,13 +155,14 @@ class DevMMv1(StrategyBase):
                             new_bid = self.my_floor(self.latest_gmid * (1 + (self.dev_ma - self.entry_offset) / 1e4))
                             new_bid = np.minimum(new_bid, self.latest_rate["best_bid"])
                             bidnow = self.entry_order.side > 0
-                            is_cur_bid_far = bidnow and abs(new_bid / self.entry_order.price - 1) * 1e4 > 1
+                            is_cur_bid_far = bidnow and abs(new_bid / self.entry_order.price - 1) * 1e4 > 0.5
                             is_cur_bid_old = bidnow and (msg["timestamp"] - self.entry_order.timestamp > datetime.timedelta(seconds=1))
                             if bidnow and ((not is_cur_bid_far) or (not is_cur_bid_old)):
                                 pass  # keep existing order
                             else:
                                 # cancel
                                 if is_live_order:
+                                    self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
                                     self.entry_order = await self.client.cancel_order(
                                         self.entry_order.order_id,
                                         timestamp=msg["timestamp"],
@@ -173,7 +180,7 @@ class DevMMv1(StrategyBase):
                             new_ask = self.my_ceil(self.latest_gmid * (1 + (self.dev_ma + self.entry_offset) / 1e4))
                             new_ask = np.maximum(new_ask, self.latest_rate["best_ask"])
                             asknow = self.entry_order.side < 0
-                            is_cur_ask_far = asknow and abs(new_ask / self.entry_order.price - 1) * 1e4 > 1
+                            is_cur_ask_far = asknow and abs(new_ask / self.entry_order.price - 1) * 1e4 > 0.5
                             is_cur_ask_old = asknow and (msg["timestamp"] - self.entry_order.timestamp > datetime.timedelta(seconds=1))
                             is_live_order = self.entry_order.is_live
                             if asknow and ((not is_cur_ask_far) or (not is_cur_ask_old)):
@@ -181,6 +188,7 @@ class DevMMv1(StrategyBase):
                             else:
                                 # cancel
                                 if is_live_order:
+                                    self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
                                     self.entry_order = await self.client.cancel_order(
                                         self.entry_order.order_id,
                                         timestamp=msg["timestamp"],
@@ -194,6 +202,7 @@ class DevMMv1(StrategyBase):
                                     msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit, 
                                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="entry")
                         elif is_live_order:
+                            self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
                             self.entry_order = await self.client.cancel_order(
                                 self.entry_order.order_id,
                                 timestamp=msg["timestamp"],
@@ -202,6 +211,7 @@ class DevMMv1(StrategyBase):
                                 src_id=msg["universal_id"],
                             )
                     elif is_live_order:
+                        self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
                         self.entry_order = await self.client.cancel_order(
                             self.entry_order.order_id,
                             timestamp=msg["timestamp"],
@@ -217,11 +227,13 @@ class DevMMv1(StrategyBase):
         if self.cur_pos > 0:
             ask = self.latest_rate["best_ask"]
             new_ask = self.my_ceil((1 + self.exit_offset / 1e4) * ask)
-            use_existing = self.exit_order.is_live and self.exit_order.side < 0 and abs(new_ask / self.exit_order.price - 1) * 1e4 < 1
+            use_existing = self.exit_order.is_live and self.exit_order.side < 0 and abs(new_ask / self.exit_order.price - 1) * 1e4 < 0.01
             if not use_existing:
                 if self.exit_order.is_live:
+                    self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
+                self.logger.info(f"send exit limit order")
                 self.exit_order = await self.client.send_order(
                     msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit, 
                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
@@ -229,11 +241,13 @@ class DevMMv1(StrategyBase):
         elif self.cur_pos < 0:
             bid = self.latest_rate["best_bid"]
             new_bid = self.my_ceil((1 - self.exit_offset / 1e4) * bid)
-            use_existing = self.exit_order.is_live and self.exit_order.side > 0 and abs(new_bid / self.exit_order.price - 1) * 1e4 < 1
+            use_existing = self.exit_order.is_live and self.exit_order.side > 0 and abs(new_bid / self.exit_order.price - 1) * 1e4 < 0.01
             if not use_existing:
                 if self.exit_order.is_live:
+                    self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
+                self.logger.info(f"send exit limit order")
                 self.exit_order = await self.client.send_order(
                     msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit, 
                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
