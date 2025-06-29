@@ -122,6 +122,7 @@ class BitbankRestClient(ExchangeClientBase):
         src_id = None,
         use_margin = True,
         return_raw_response=False,
+        misc=None,
         **kwargs
     ):
         # order info
@@ -129,7 +130,7 @@ class BitbankRestClient(ExchangeClientBase):
             datetime.datetime.now(datetime.timezone.utc), market_created_timestamp=pd.NaT, sym=sym,
             side=side, price=price, amount=amount, executed_amount=0, order_type=order_type, order_status=OrderStatus.New,
             venue=VENUE.BITBANK, model_id=self.strategy.model_id, process_id=self.strategy.process_id, src_type=src_type, 
-            src_id=src_id, src_timestamp=src_timestamp
+            src_id=src_id, src_timestamp=src_timestamp, misc=misc,
         )
         asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (new)
 
