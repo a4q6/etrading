@@ -130,8 +130,9 @@ class DevMMv1(StrategyBase):
             if msg["order_id"] == self.exit_order.order_id:
                 msg.pop("_data_type")
                 self.exit_order = Order(**msg)
-                self.logger.info("EXIT LIMIT ORDER FILLED")
                 self.logger.info(f"Updated exit order status || {self.exit_order.to_dict()}")
+                if self.entry_order.order_status in [OrderStatus.Filled]:
+                    self.logger.info("EXIT LIMIT ORDER FILLED")
 
         if dtype == "Rate":
             # update deviation
