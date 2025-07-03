@@ -243,8 +243,10 @@ class BitbankRestClient(ExchangeClientBase):
         code = response.get("data").get("code")
         return BITBANK_ERROR_CODES.get(code)
 
-    async def check_order(self, order_id: str, return_raw_response=False) -> Union[Dict, Order]:
-        data = self._order_cache[order_id]
+    async def check_order(self, order_id: str, sym: str = None, return_raw_response=False) -> Union[Dict, Order]:
+        if sym is None:
+            data = self._order_cache[order_id]
+            sym = data.sym
         params = {"pair": self.as_bb_symbol(data.sym), "order_id": int(order_id)}
         res = await self._request("GET", "/v1/user/spot/order", params=params)
         if return_raw_response:
