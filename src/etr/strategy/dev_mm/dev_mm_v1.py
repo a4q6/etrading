@@ -34,14 +34,14 @@ class DevMMv1(StrategyBase):
         tp_level: float,
         entry_offset: float,
         exit_offset: float,
-        dev_window = datetime.timedelta(minutes=10),
-        reference = [
+        dev_window=datetime.timedelta(minutes=10),
+        reference=[
             ("binance", "BTCUSDT"),
             ("bitflyer", "BTCJPY"),
             ("bitmex", "XBTUSD"),
         ],
         vol_threshold: float = 50,  # [%/Y]
-        decimal = 0,
+        decimal=0,
         model_id="DevMM_v1",
         log_file=None,
     ):
@@ -71,7 +71,7 @@ class DevMMv1(StrategyBase):
         self.gmid_hist: deque = deque()
         self.latest_dev: np.float = np.nan
         self.dev_hist: deque = deque()
-        self.dev_ma = np.nan  # 
+        self.dev_ma = np.nan
         self._total = 0.0  # for MA(dev) calculation
         self._count = 0  # for MA(dev) calculation
         self.last_update_gmid_hist = datetime.datetime(2000, 1, 1, tzinfo=pytz.timezone("UTC"))
@@ -79,8 +79,7 @@ class DevMMv1(StrategyBase):
         self._vol_cache = []
         self._log_timestamp = datetime.datetime.now()
 
-
-    def warmup(self, now = datetime.datetime.now(datetime.timezone.utc)):
+    def warmup(self, now=datetime.datetime.now(datetime.timezone.utc)):
         tkynow = pd.Timestamp(now).astimezone(pytz.timezone("Asia/Tokyo"))
         if tkynow.hour in [10]:
             raise RuntimeError("Do not turn on strategy during EoD process.")
@@ -173,7 +172,7 @@ class DevMMv1(StrategyBase):
                                 # new order
                                 self.logger.info(f"Place entry limit order @(+1, {new_bid})")
                                 self.entry_order = await self.client.send_order(
-                                    msg["timestamp"], self.sym, side=1, price=new_bid, amount=self.amount, order_type=OrderType.Limit, 
+                                    msg["timestamp"], self.sym, side=1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,
                                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="entry")
 
                         elif gmid_sign < 0 and self.dev_ma > 0:
@@ -199,7 +198,7 @@ class DevMMv1(StrategyBase):
                                 # new order
                                 self.logger.info(f"Place entry limit order @(-1, {new_ask})")
                                 self.entry_order = await self.client.send_order(
-                                    msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit, 
+                                    msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit,
                                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="entry")
                         elif is_live_order:
                             self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
@@ -225,7 +224,10 @@ class DevMMv1(StrategyBase):
 
     async def _place_exit_order(self, msg: Dict, dtype: str):
         if self.cur_pos > 0:
-            ask = self.latest_rate["best_ask"]
+            if self.latest_rate["best_bid"] < self.latest_rate["best_ask"] - 10 ** self.decimal:
+                ask = self.latest_rate["best_ask"] - 10 ** self.decimal
+            else:
+                ask = self.latest_rate["best_ask"]
             new_ask = self.my_ceil((1 + self.exit_offset / 1e4) * ask)
             use_existing = self.exit_order.is_live and self.exit_order.side < 0 and abs(new_ask / self.exit_order.price - 1) * 1e4 < 0.01
             if not use_existing:
@@ -233,13 +235,16 @@ class DevMMv1(StrategyBase):
                     self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                self.logger.info(f"send exit limit order")
+                self.logger.info("send exit limit order")
                 self.exit_order = await self.client.send_order(
-                    msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit, 
+                    msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit,
                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
 
         elif self.cur_pos < 0:
-            bid = self.latest_rate["best_bid"]
+            if self.latest_rate["best_ask"] > self.latest_rate["best_bid"] + 10 ** self.decimal:
+                bid = self.latest_rate["best_bid"] + 10 ** self.decimal
+            else:
+                bid = self.latest_rate["best_bid"]
             new_bid = self.my_ceil((1 - self.exit_offset / 1e4) * bid)
             use_existing = self.exit_order.is_live and self.exit_order.side > 0 and abs(new_bid / self.exit_order.price - 1) * 1e4 < 0.01
             if not use_existing:
@@ -247,9 +252,9 @@ class DevMMv1(StrategyBase):
                     self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                self.logger.info(f"send exit limit order")
+                self.logger.info("send exit limit order")
                 self.exit_order = await self.client.send_order(
-                    msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit, 
+                    msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,
                     src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
 
     def _update_deviation(self, msg):
@@ -282,7 +287,7 @@ class DevMMv1(StrategyBase):
                     self.gmid_hist.append([msg["timestamp"], gmid])
                     self._trim(self.gmid_hist, now=msg["timestamp"], update_cache=False)
 
-    def _trim(self, queue: deque, now: datetime.datetime, update_cache = False):
+    def _trim(self, queue: deque, now: datetime.datetime, update_cache=False):
         while queue and (now - queue[0][0]) > self.dev_window:
             old_time, old_value = queue.popleft()
             if update_cache:

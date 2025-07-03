@@ -1,14 +1,12 @@
 import datetime
 import numpy as np
 import pandas as pd
-from threading import Thread
-from dataclasses import asdict, dataclass
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from uuid import uuid4
-from typing import Union, List, Dict, Callable, Set, Optional
+from typing import Union, List, Dict, Callable, Set, Optional, Any
 from copy import deepcopy
 
-from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
+from etr.core.datamodel import OrderType, OrderStatus, Order, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
 from etr.strategy.base_strategy import StrategyBase
 
@@ -34,7 +32,7 @@ class BacktestClient(ExchangeClientBase):
         self.open_pnl = {}
         self.positions = {}  # {sym: (vwap, amount)}
         self.transactions: List[Trade] = []
-
+        self._latest_book: Dict[str, Any] = {}
 
     def register_strategy(self, strategy: StrategyBase):
         self.strategy = strategy
@@ -161,25 +159,37 @@ class BacktestClient(ExchangeClientBase):
                 # filled_ids = []
                 for oid, o in self.open_limit_orders.items():
                     if o.sym == sym:
-                        if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):  # [NOTE]
-                            o.executed_amount = o.amount
-                            o.order_status = OrderStatus.Filled
-                            o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
-                            self.filled_orders_message[oid] = deepcopy(o)
-                            t: Trade = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"], 
-                                                        price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
-                            self.update_position(t)
-                            self.transactions.append(t)
-                            await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
-                            await self.strategy.on_message(o.to_dict(to_string_timestamp=False))
-                            # filled_ids.append(oid)
+                        if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):
+                            filled = False
+                            if msg["price"] == o.price:
+                                # potentially filled
+                                side = "bids" if o.side > 0 else "asks"
+                                b = np.array(self._latest_book[side].tolist())
+                                amount = b[(b[:, 0] - msg["price"]) * o.side >= 0, 1].sum()
+                                filled = msg["amount"] > amount * 0.5  # done if MO amount is larger than 50% of market book
+                            else:
+                                filled = True
+                            if filled:
+                                o.executed_amount = o.amount
+                                o.order_status = OrderStatus.Filled
+                                o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
+                                self.filled_orders_message[oid] = deepcopy(o)
+                                t: Trade = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"],
+                                                            price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
+                                self.update_position(t)
+                                self.transactions.append(t)
+                                await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
+                                await self.strategy.on_message(o.to_dict(to_string_timestamp=False))
+                                # filled_ids.append(oid)
+
                 self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if o.order_status not in (OrderStatus.Canceled, OrderStatus.Filled)}
+
             elif dtype == "BT_MarketBook":
-                pass  # check market orders
+                self._latest_book = msg
 
     def update_position(self, trade: Trade) -> None:
         sym = trade.sym
-        if not sym in self.positions or self.positions[sym][1] == 0:
+        if sym not in self.positions or self.positions[sym][1] == 0:
             # New
             self.positions[sym] = [trade.price, trade.amount * trade.side]
         else:
@@ -212,7 +222,7 @@ class BacktestClient(ExchangeClientBase):
     @property
     def orders_frame(self) -> pd.DataFrame:
         o = pd.concat([
-            pd.DataFrame(o.values()) 
+            pd.DataFrame(o.values())
             for o in [self.new_order_message, self.amend_order_message, self.filled_orders_message, self.cancel_order_message]
         ])
         if o.shape[0] > 0:
