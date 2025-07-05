@@ -40,6 +40,7 @@ class BitbankRestClient(ExchangeClientBase):
         api_key: str = Config.BITBANK_API_KEY,
         api_secret: str = Config.BITBANK_API_SECRET,
         log_file: Optional[str] = None,
+        tp_number: int = 1,
         **kwargs,
     ):
         self.api_key = api_key
@@ -47,10 +48,7 @@ class BitbankRestClient(ExchangeClientBase):
 
         # logger
         tp_file = Path(Config.TP_DIR)
-        self.ticker_plant = AsyncBufferedLogger(
-            logger_name=f"TP-BitBankPrivateRest-ALL",
-            log_dir=tp_file.as_posix()
-        )
+        self.ticker_plant = AsyncBufferedLogger(logger_name=f"TP-BitBankPrivate{tp_number}-ALL", log_dir=tp_file.as_posix())
         logger_name = "bb-client" if log_file is None else log_file.split("/")[-1].split(".")[0]
         if log_file is not None:
             log_file = Path(Config.LOG_DIR).joinpath(log_file).as_posix()

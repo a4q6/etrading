@@ -8,6 +8,7 @@ import time
 import pandas as pd
 import asyncio
 import numpy as np
+from pathlib import Path
 from uuid import uuid4
 from typing import Optional, Dict, Union
 from copy import deepcopy
@@ -15,6 +16,7 @@ from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
 from etr.strategy.base_strategy import StrategyBase
 from etr.config import Config
+from etr.core.async_logger import AsyncBufferedLogger
 
 
 class CoincheckRestClient(ExchangeClientBase):
@@ -27,8 +29,16 @@ class CoincheckRestClient(ExchangeClientBase):
         api_key: str = Config.COINCHECK_API_KEY,
         api_secret: str = Config.COINCHECK_API_SECRET,
         log_file="strategy.log",
+        tp_number: int = 0,
     ):
         super().__init__(log_file=log_file)
+        # TP
+        tp_file = Path(Config.TP_DIR)
+        self.ticker_plant = AsyncBufferedLogger(
+            logger_name=f"TP-CoincheckPrivate{tp_number}-ALL",
+            log_dir=tp_file.as_posix()
+        )
+        # exchange specific
         self.uri = "https://coincheck.com"
         self.api_key = api_key
         self.api_secret = api_secret

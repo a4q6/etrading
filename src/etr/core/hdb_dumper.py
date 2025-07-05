@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import time
 import shutil
+import re
 from pathlib import Path
 from multiprocessing import Process
 from typing import Optional, List, Dict
@@ -30,9 +31,11 @@ class HdbDumper:
         "BitFlyerFundingRate": ["FundingRate"],
         "BinanceSocketClient": ["Rate", "MarketTrade"],
         "BinanceRestEoption": ["ImpliedVolatility"],
-        "CoincheckRestClient": ["Order", "Trade"],
-        "BitBankPrivateStream": ["Order", "Trade", "PositionUpdate"],
-        "BitBankPrivateRest": ["Order", "Trade", "PositionUpdate"],
+        "CoincheckRestClient": ["Order", "Trade"],  # [NOTE] legacy
+        "BitBankPrivateStream": ["Order", "Trade", "PositionUpdate"],  # [NOTE] legacy
+        "BitBankPrivateRest": ["Order", "Trade", "PositionUpdate"],  # [NOTE] legacy
+        "CoincheckPrivate": ["Order", "Trade"],
+        "BitBankPrivate": ["Order", "Trade", "PositionUpdate"],
     }
     venue_map = {
         "BitmexSocketClient": VENUE.BITMEX,
@@ -44,12 +47,19 @@ class HdbDumper:
         "BitFlyerFundingRate": VENUE.BITFLYER,
         "BinanceSocketClient": VENUE.BINANCE,
         "BinanceRestEoption": VENUE.BINANCE,
-        "CoincheckRestClient": VENUE.COINCHECK,
-        "BitBankPrivateStream": VENUE.BITBANK,
-        "BitBankPrivateRest": VENUE.BITBANK,
+        "CoincheckRestClient": VENUE.COINCHECK,  # [NOTE] legacy
+        "BitBankPrivateStream": VENUE.BITBANK,  # [NOTE] legacy
+        "BitBankPrivateRest": VENUE.BITBANK,  # [NOTE] legacy
+        "BitBankPrivate": VENUE.BITBANK,
+        "CoincheckPrivate": VENUE.COINCHECK,
     }
     mtp_pairs = [
+        # [NOTE] Legacy MTP logic
         ("BitBankPrivateStream", "BitBankPrivateRest"),
+    ]
+    mtp_list = [
+        "BitBankPrivate",
+        "CoincheckPrivate",
     ]
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):
@@ -70,13 +80,15 @@ class HdbDumper:
 
         self.logger.info(f"Start extraction for '{Path(log_file).name}'")
         logger_name = Path(log_file).name.split("-")[1]
+        raw_logger_name = re.sub(r'\d+', '', logger_name)
+        print(raw_logger_name)
         date = Path(log_file).name.split(".")[-1]
         sym_from_fname = Path(log_file).name.split("-")[2].split(".log")[0].replace("_", "").upper()
 
         # check existing files
         exists_all = True
-        venue = self.venue_map.get(logger_name)
-        for table in self.table_list[logger_name]:
+        venue = self.venue_map.get(raw_logger_name)
+        for table in self.table_list[raw_logger_name]:
             path = self.build_path(table, date, venue, sym_from_fname)
             self.logger.info(f"{path.exists()} -- {path}")
             exists_all = exists_all and path.exists()
@@ -85,7 +97,7 @@ class HdbDumper:
             return
 
         # Proceed to extraction
-        # check if MTP or not
+        # check if MTP or not [NOTE] legacy MTP logic
         linked_tps = None
         for mtp_pair in self.mtp_pairs:
             if logger_name in mtp_pair:
@@ -94,10 +106,21 @@ class HdbDumper:
                 break
 
         # read log file
-        if linked_tps is None:
+        if raw_logger_name in self.mtp_list:
+            # [NOTE] New MTP logic
+            records = self.read_tp_file(log_file)
+            for i in range(10):
+                candidate = Path(log_file).as_posix().replace(logger_name, f"{raw_logger_name}{i}")
+                if Path(candidate).exists() and Path(log_file).as_posix() != Path(candidate).as_posix():
+                    self.logger.info(f"Found MTP file: {candidate}")
+                    add_records = self.read_tp_file(candidate)
+                    for k, rec in add_records.items():
+                        records[k] += rec
+        elif linked_tps is None:
             # Single TP
             records = self.read_tp_file(log_file)
         else:
+            # [NOTE] legacy MTP logic
             # Multi TP
             records = self.read_tp_file(log_file)
             for tp_name in linked_tps:
@@ -165,7 +188,8 @@ class HdbDumper:
 
     def read_tp_file(self, log_file) -> Dict[str, List]:
         logger_name = Path(log_file).name.split("-")[1]
-        records = {table: [] for table in self.table_list[logger_name]}
+        raw_logger_name = re.sub(r'\d+', '', logger_name)
+        records = {table: [] for table in self.table_list[raw_logger_name]}
         with open(log_file, "r", encoding="utf-8") as f:
             for i, line in tqdm(enumerate(f)):
                 json_part = line.split("||", 1)[-1]
@@ -219,5 +243,4 @@ class HdbDumper:
 
 
 if __name__ == '__main__':
-    HdbDumper().roll_old_log_files()
-    # HdbDumper().dump_to_hdb("data/tp/TP-BitBankPrivateStream-ALL.log.2025-06-28")
+    HdbDumper().dump_to_hdb("/Users/tarai/Research/etrading/data/tp/TP-BitBankPrivate0-ALL.log.2025-06-27", skip_if_exists=False)

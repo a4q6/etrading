@@ -40,6 +40,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         time_window = "5000",
         api_key: str = Config.BITBANK_API_KEY,
         api_secret: str = Config.BITBANK_API_SECRET,
+        tp_number: int = 0,
     ):
         # auth & endpoint
         self.ws_url = "wss://stream.bitbank.cc/socket.io/?EIO=4&transport=websocket"
@@ -52,7 +53,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
         tp_file = Path(Config.TP_DIR)
-        self.ticker_plant = AsyncBufferedLogger(logger_name=f"TP-BitBankPrivateStream-ALL", log_dir=tp_file.as_posix())
+        self.ticker_plant = AsyncBufferedLogger(logger_name=f"TP-BitBankPrivate{tp_number}-ALL", log_dir=tp_file.as_posix())
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
         self.publisher = publisher
         self.event_queue = janus.Queue()
