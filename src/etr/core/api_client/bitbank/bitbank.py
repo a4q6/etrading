@@ -235,8 +235,13 @@ class BitbankRestClient(ExchangeClientBase):
             return oinfo
         else:
             self.logger.warning(f"APIError: {self.get_error_cause(res)}")
-            oinfo = deepcopy(self._order_cache[order_id])
-            return oinfo
+            oinfo = self._order_cache[order_id]
+            code = res.get("data").get("code")
+            if code in [50026]:
+                oinfo.order_status = OrderStatus.Canceled
+            elif code in [50027]:
+                oinfo.order_status = OrderStatus.Filled
+            return deepcopy(oinfo)
 
     @staticmethod
     def get_error_cause(response: dict) -> str:
@@ -247,7 +252,7 @@ class BitbankRestClient(ExchangeClientBase):
         if sym is None:
             data = self._order_cache[order_id]
             sym = data.sym
-        params = {"pair": self.as_bb_symbol(data.sym), "order_id": int(order_id)}
+        params = {"pair": self.as_bb_symbol(sym), "order_id": int(order_id)}
         res = await self._request("GET", "/v1/user/spot/order", params=params)
         if return_raw_response:
             return res
