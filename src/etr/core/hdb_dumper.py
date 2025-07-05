@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 import time
+import shutil
 from pathlib import Path
 from multiprocessing import Process
 from typing import Optional, List, Dict
@@ -123,7 +124,7 @@ class HdbDumper:
             self.logger.info(f"Saving '{table}-{venue}-{sym_from_fname}'")
             if df.shape[0] > 0:
                 if sym_from_fname != "ALL":
-                    assert df.sym.nunique() == 1, f"sym is not unique in {file}"
+                    assert df.sym.nunique() == 1, f"sym is not unique in {log_file}"
                 path = self.build_path(table, date, venue, sym_from_fname)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 df.to_parquet(path)
@@ -147,6 +148,21 @@ class HdbDumper:
         else:
             return pd.DataFrame(columns=["fname", "logger_name", "date", "path"])
 
+    def roll_old_log_files(self):
+        files = glob(f"{self.tp_dir}/*.log")
+        today = pd.Timestamp.today(tz="UTC")
+        for file in files:
+            # read timestamp
+            with open(file, "r", encoding="utf-8") as f:
+                for i, line in enumerate(f):
+                    if len(line) > 10:
+                        timestamp = pd.Timestamp(line.split("||", 1)[0])
+                        break
+            if timestamp.date() < today.date():
+                fname = str(file) + timestamp.strftime(".%Y-%m-%d")
+                shutil.move(file, fname)
+                self.logger.info(f"Renamed '{file}' => '{fname}'")
+
     def read_tp_file(self, log_file) -> Dict[str, List]:
         logger_name = Path(log_file).name.split("-")[1]
         records = {table: [] for table in self.table_list[logger_name]}
@@ -158,6 +174,7 @@ class HdbDumper:
         return records
 
     def dump_all(self, n_days=10, skip_if_exists=True):
+        self.roll_old_log_files()
         files = self.list_log_files()
         threshold = pd.Timestamp.today() - pd.Timedelta(f"{n_days}D")
         for file in files.query("@threshold < date").path:
@@ -202,4 +219,5 @@ class HdbDumper:
 
 
 if __name__ == '__main__':
-    HdbDumper().dump_to_hdb("data/tp/TP-BitBankPrivateStream-ALL.log.2025-06-28")
+    HdbDumper().roll_old_log_files()
+    # HdbDumper().dump_to_hdb("data/tp/TP-BitBankPrivateStream-ALL.log.2025-06-28")
