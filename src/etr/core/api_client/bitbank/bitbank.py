@@ -235,7 +235,7 @@ class BitbankRestClient(ExchangeClientBase):
             self.logger.warning(f"APIError: {self.get_error_cause(res)}")
             oinfo = self._order_cache[order_id]
             code = res.get("data").get("code")
-            if code in [50026]:
+            if code in [50026, 70019]:
                 oinfo.order_status = OrderStatus.Canceled
             elif code in [50027]:
                 oinfo.order_status = OrderStatus.Filled
