@@ -230,16 +230,24 @@ class DevMMv1(StrategyBase):
             else:
                 ask = self.latest_rate["best_ask"]
             new_ask = self.my_ceil((1 + self.exit_offset / 1e4) * ask)
-            use_existing = self.exit_order.is_live and self.exit_order.side < 0 and abs(new_ask / self.exit_order.price - 1) * 1e4 < 0.01
+            use_existing = (
+                self.exit_order.is_live
+                and self.exit_order.side < 0 
+                and abs(new_ask / self.exit_order.price - 1) * 1e4 < 0.01
+                and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
+            )
             if not use_existing:
                 if self.exit_order.is_live:
                     self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                self.logger.info("send exit limit order")
-                self.exit_order = await self.client.send_order(
-                    msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit,
-                    src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
+                if not self.exit_order.is_live:
+                    self.logger.info("send exit limit order")
+                    self.exit_order = await self.client.send_order(
+                        msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit,
+                        src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
+                else:
+                    self.logger.info("exit order might be already canceled or filled, skip sending new exit order.")
 
         elif self.cur_pos < 0:
             if self.latest_rate["best_ask"] > self.latest_rate["best_bid"] + 10 ** self.decimal:
@@ -247,16 +255,24 @@ class DevMMv1(StrategyBase):
             else:
                 bid = self.latest_rate["best_bid"]
             new_bid = self.my_ceil((1 - self.exit_offset / 1e4) * bid)
-            use_existing = self.exit_order.is_live and self.exit_order.side > 0 and abs(new_bid / self.exit_order.price - 1) * 1e4 < 0.01
+            use_existing = (
+                self.exit_order.is_live 
+                and self.exit_order.side > 0 
+                and abs(new_bid / self.exit_order.price - 1) * 1e4 < 0.01
+                and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
+            )
             if not use_existing:
                 if self.exit_order.is_live:
                     self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                self.logger.info("send exit limit order")
-                self.exit_order = await self.client.send_order(
-                    msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,
-                    src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
+                if not self.entry_order.is_live:
+                    self.logger.info("send exit limit order")
+                    self.exit_order = await self.client.send_order(
+                        msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,
+                        src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
+                else:
+                    self.logger.info("exit order might be already canceled or filled, skip sending new exit order.")
 
     def _update_deviation(self, msg):
         if msg["sym"] == "USDJPY":
