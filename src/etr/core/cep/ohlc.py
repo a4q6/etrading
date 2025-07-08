@@ -5,27 +5,31 @@ from typing import List, Dict, Any
 from copy import deepcopy
 from etr.config import Config
 from etr.common.logger import LoggerFactory
+from etr.core.cep.cep_base import CEP
 
 
-class RateOHLC:
+class OHLC(CEP):
     def __init__(
         self,
         venue: str,
         sym: str,
-        interval: int,
-        cache_duration: int = 60 * 60,
+        interval: int,  # [sec]
+        cache_duration: int = 60 * 60,  # [sec]
+        price_field_name: str = "mid_price",
+        source_type: str = "Rate",
         log_file=None,
     ):
-        # logger
-        if log_file is not None:
-            log_file = Path(Config.LOG_DIR).joinpath(log_file).as_posix()
-        logger_name = __class__.__name__
-        self.logger = LoggerFactory().get_logger(logger_name=logger_name, log_file=log_file)
+        assert price_field_name in ["mid_price", "price"]
+        assert source_type in ["Rate", "MarketTrade"]
+        super().__init__(logger_name=__class__.__name__, log_file=log_file)
+        self.logger.info("OHLC CEP initialized: ({}, {}, interval={}s, cache={}s)".format(sym, venue, interval, cache_duration))
 
         self.venue = venue
         self.sym = sym
-        self.interval = interval  # [sec]
-        self.cache_duration = cache_duration  # [sec]
+        self.interval = interval
+        self.cache_duration = cache_duration
+        self.source_type = source_type
+        self.price_field_name = price_field_name
 
         self.current_candle = None
         self.current_start = None
@@ -35,12 +39,12 @@ class RateOHLC:
     async def on_message(self, msg: dict):
 
         dtype = msg.get("_data_type")
-        if dtype not in ("Rate", "Heartbeat"):
+        if dtype not in (self.source_type, "Heartbeat"):
             return
 
         dt = msg.get("timestamp")
         if msg.get("venue") == self.venue and msg.get("sym") == self.sym:
-            price = msg.get("mid_price")
+            price = msg.get(self.price_field_name)
             self.latest_price = price if price is not None else None
 
         if self.latest_price is not None:
@@ -83,11 +87,11 @@ class RateOHLC:
 
     def _finalize_candle(self):
         if self.current_candle:
-            self.logger.info("Finalized OHLC:", self.current_candle)
+            self.logger.info(f"Finalized OHLC: {self.current_candle}")
             self.buffer.append(deepcopy(self.current_candle))
 
     def _clean_buffer(self, now: datetime):
-        """remove older candle（nowはtz-aware datetime）"""
+        """remove older candle（now = tz-aware datetime）"""
         threshold = now - timedelta(seconds=self.cache_duration)
         while self.buffer and self.buffer[0]["timestamp"] + timedelta(seconds=self.interval) <= threshold:
             self.buffer.popleft()

@@ -1,1 +1,1 @@
-from .rate_ohlc import RateOHLC
+from .ohlc import OHLC
