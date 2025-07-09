@@ -1,5 +1,6 @@
 import pandas as pd
-from datetime import datetime, timezone
+import asyncio
+from pathlib import Path
 from typing import Callable, Awaitable, List
 
 from etr.config import Config
@@ -14,7 +15,7 @@ class CEP:
 
     def start_heartbeat(
         interval: int = 10,
-        callbacks: List[Callable[[dict], Awaitable[None]]],
+        callbacks: List[Callable[[dict], Awaitable[None]]] = [],
     ) -> asyncio.Task:
         async def _heartbeat_loop():
             while True:

@@ -1,14 +1,11 @@
 from collections import deque
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import List, Dict, Any
 from copy import deepcopy
-from etr.config import Config
-from etr.common.logger import LoggerFactory
 from etr.core.cep.cep_base import CEP
 
 
-class OHLC(CEP):
+class OHLCV(CEP):
     def __init__(
         self,
         venue: str,
@@ -62,7 +59,11 @@ class OHLC(CEP):
 
             # update
             if price is not None:
-                self._update_candle(price)
+                side = msg.get("side", 0)
+                amt = msg.get("amount", 0)
+                bv = amt * (side > 0)
+                sv = amt * (side < 0)
+                self._update_candle(price, buy_volume=bv, sell_volume=sv)
 
     def _floor_time(self, dt: datetime) -> datetime:
         total_seconds = int(dt.timestamp())
@@ -78,12 +79,18 @@ class OHLC(CEP):
             "high": self.latest_price,
             "low": self.latest_price,
             "close": self.latest_price,
+            "volume": 0,
+            "buy_volume": 0,
+            "sell_volume": 0,
         }
 
-    def _update_candle(self, price):
+    def _update_candle(self, price, buy_volume=0, sell_volume=0):
         self.current_candle["high"] = max(self.current_candle["high"], price)
         self.current_candle["low"] = min(self.current_candle["low"], price)
         self.current_candle["close"] = price
+        self.current_candle["buy_volume"] += buy_volume
+        self.current_candle["sell_volume"] += sell_volume
+        self.current_candle["volume"] = self.current_candle["sell_volume"] + self.current_candle["buy_volume"]
 
     def _finalize_candle(self):
         if self.current_candle:
