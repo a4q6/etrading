@@ -78,6 +78,7 @@ class DevMMv1(StrategyBase):
         self.gmid_std = np.nan
         self._vol_cache = []
         self._log_timestamp = datetime.datetime.now()
+        self._last_executed_at = pd.Timestamp("2000-01-01", tz="UTC")
 
     def warmup(self, now=datetime.datetime.now(datetime.timezone.utc)):
         tkynow = pd.Timestamp(now).astimezone(pytz.timezone("Asia/Tokyo"))
@@ -266,7 +267,7 @@ class DevMMv1(StrategyBase):
                     self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                     self.exit_order = await self.client.cancel_order(
                         self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                if not self.entry_order.is_live:
+                if not self.exit_order.is_live:
                     self.logger.info("send exit limit order")
                     self.exit_order = await self.client.send_order(
                         msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,

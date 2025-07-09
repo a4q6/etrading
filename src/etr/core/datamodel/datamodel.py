@@ -167,7 +167,7 @@ class Order:
     
     @property
     def is_live(self):
-        return (self.executed_amount < self.amount) and (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
+        return (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
 
     @staticmethod
     def null_order() -> 'Order':

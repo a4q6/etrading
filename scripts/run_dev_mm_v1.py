@@ -19,7 +19,7 @@ if __name__ == "__main__":
         position_horizon=60,
         sl_level=100,
         tp_level=np.nan,
-        entry_offset=4.5,
+        entry_offset=2.0,
         exit_offset=0,
         dev_window=datetime.timedelta(minutes=10),
         reference=[('gmo', 'BTCJPY'), ('bitflyer', 'BTCJPY'), ('bitmex', 'XBTUSD'), ('binance', "BTCUSDT")],
@@ -50,7 +50,7 @@ if __name__ == "__main__":
             {"_data_type": "Rate", "venue": "binance", "sym": "BTCUSDT"},
         ])
         now = pd.Timestamp.today()
-        stop = (now + pd.Timedelta("3H"))
+        stop = (now + pd.Timedelta("1D"))
         await asyncio.sleep((stop - now).total_seconds())
         # await asyncio.sleep(1 * 60 * 24 * 365 * 10)
 
@@ -77,6 +77,8 @@ if __name__ == "__main__":
             )
         except KeyboardInterrupt:
             print("Interrupted by user")
+        except Exception as e:
+            strategy.logger.error(f"{e}", exc_info=True)
         finally:
             print("Closing connections...")
             await asyncio.gather(
