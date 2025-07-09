@@ -93,6 +93,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
             self.logger.info("[Token Refresh] Proactively reconnecting...")
             try:
                 self.pubnub.unsubscribe().channels([self.channel]).execute()
+                await asyncio.sleep(1)
             except Exception as e:
                 self.logger.warning(f"[Token Refresh] Unsubscribe failed: {e}")
             await self.connect()
@@ -113,14 +114,17 @@ class BitbankPrivateStreamClient(SubscribeCallback):
 
         config = PNConfiguration()
         config.subscribe_key = "sub-c-ecebae8e-dd60-11e6-b6b1-02ee2ddab7fe"
+        config.heartbeat_interval = 60
+        config.set_presence_timeout(180)
         config.uuid = self.channel
         config.auth_key = self.token  # 一部SDKでは auth_key or setToken を利用
 
         self.logger.info("Start subscribing bitbank private stream")
-        self.pubnub = PubNub(config)
-        self.pubnub.add_listener(self)
-        self.pubnub.set_token(self.token)
-        self.pubnub.subscribe().channels(self.channel).execute()
+        new_pubnub = PubNub(config)
+        new_pubnub.add_listener(self)
+        new_pubnub.set_token(self.token)
+        new_pubnub.subscribe().channels(self.channel).execute()
+        self.pubnub = new_pubnub
 
     def disconnect(self):
         self.pubnub.unsubscribe().channels(self.channel).execute()
@@ -133,8 +137,20 @@ class BitbankPrivateStreamClient(SubscribeCallback):
             asyncio.run_coroutine_threadsafe(self.reconnect(), self.loop)
 
     async def reconnect(self):
-        self.pubnub.unsubscribe().channels([self.channel]).execute()
-        await self.connect()
+        self.logger.info("Reconnecting PubNub...")
+        if hasattr(self, "pubnub"):
+            try:
+                self.pubnub.unsubscribe().channels([self.channel]).execute()
+                self.pubnub.stop()  # 安全に完全停止
+                await asyncio.sleep(1)  # 明示的なクールダウン
+            except Exception as e:
+                self.logger.warning(f"Exception during unsubscribe: {e}", exc_info=True)
+
+        try:
+            await self.connect()
+            self.logger.info("Reconnection complete")
+        except Exception as e:
+            self.logger.error(f"Exception during reconnect(): {e}", exc_info=True)
 
     def message(self, pubnub, message):
         """PubNubからのメッセージ受信時に呼ばれる（非同期キューへ）"""
@@ -163,7 +179,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
                 elif event_type == "margin_position_update":
                     await self._handle_position_update(event_msg)
                 else:
-                    self.logger.debug(f"{event_type} | {event_msg}")
+                    self.logger.warning(f"{event_type} | {event_msg}")
             except KeyboardInterrupt:
                 raise KeyboardInterrupt()
             except Exception as e:
