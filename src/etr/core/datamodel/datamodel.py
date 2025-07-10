@@ -36,7 +36,7 @@ class MarketTrade:
     trade_id: str = None
     order_ids: str = None
     misc: str = None
-    universal_id: str = field(default_factory=lambda : uuid4().hex)
+    universal_id: str = field(default_factory=lambda _: uuid4().hex)
 
     def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
@@ -46,10 +46,11 @@ class MarketTrade:
             data["timestamp"] = data["timestamp"].isoformat()
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
-    
+
     @property
     def latency(self):
         return (self.timestamp - self.market_created_timestamp).total_seconds()
+
 
 @dataclass
 class Rate:
@@ -62,7 +63,7 @@ class Rate:
     best_ask: float = np.nan
     mid_price: float = np.nan
     misc: str = None
-    universal_id: str = field(default_factory=lambda : uuid4().hex)
+    universal_id: str = field(default_factory=lambda _: uuid4().hex)
 
     def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
@@ -73,14 +74,15 @@ class Rate:
             data["timestamp"] = data["timestamp"].isoformat()
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
         return data
-    
+
     @property
     def latency(self):
         return (self.timestamp - self.market_created_timestamp).total_seconds()
-        
+
     @property
     def spread(self):
         return self.best_ask - self.best_bid
+
 
 @dataclass
 class MarketBook:
@@ -91,7 +93,7 @@ class MarketBook:
     category: str = None
     bids: SortedDict = field(default_factory=SortedDict)
     asks: SortedDict = field(default_factory=SortedDict)
-    universal_id: str = field(default_factory=lambda : uuid4().hex)
+    universal_id: str = field(default_factory=lambda _: uuid4().hex)
     misc: str = None
 
     def to_dict(self, level=20, to_string_timestamp=True):
@@ -105,7 +107,7 @@ class MarketBook:
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
 
         return data
-    
+
     def to_rate(self) -> Rate:
         return Rate(
             timestamp=self.timestamp,
@@ -118,14 +120,14 @@ class MarketBook:
             category=self.category,
             misc=self.universal_id,
         )
-    
+
     @property
     def best_bid(self):
         return self.bids.peekitem(-1)[0] if len(self.bids) > 0 else np.nan
 
     @property
     def best_ask(self):
-        return self.asks.peekitem( 0)[0] if len(self.asks) > 0 else np.nan
+        return self.asks.peekitem(0)[0] if len(self.asks) > 0 else np.nan
 
     @property
     def mid_price(self):
@@ -134,6 +136,7 @@ class MarketBook:
     @property
     def latency(self):
         return (self.timestamp - self.market_created_timestamp).total_seconds()
+
 
 @dataclass
 class Order:
@@ -164,7 +167,7 @@ class Order:
             data["market_created_timestamp"] = data["market_created_timestamp"].isoformat()
             data["src_timestamp"] = data["src_timestamp"].isoformat()
         return data
-    
+
     @property
     def is_live(self):
         return (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
@@ -185,12 +188,13 @@ class Order:
             universal_id="",
         )
 
-    
+
 @dataclass
 class OrderType:
     Limit = "limit"
     Market = "market"
     Stop = "stop"
+
     @staticmethod
     def convert(s: str) -> str:
         if s in ["LIMIT"]:
@@ -199,7 +203,8 @@ class OrderType:
             return OrderType.Market
         else:
             raise ValueError(f"Unexpected order type passed: {s}")
-            
+
+
 @dataclass
 class OrderStatus:
     Null = ""
@@ -209,14 +214,14 @@ class OrderStatus:
     Canceled = "canceled"
     Filled = "filled"
     Sent = "sent"
-    
+
     @staticmethod
-    def convert(res: str = None, order = None) -> str:
+    def convert(res: str = None, order=None) -> str:
         if order is None:
             order = Order.null_order()
         if res is None:
             return OrderStatus.New
-        elif res in ("live", "ORDER", "EXECUTION") and not order.order_status in ("filled", "canceled"):
+        elif res in ("live", "ORDER", "EXECUTION") and order.order_status not in ("filled", "canceled"):
             return OrderStatus.Updated
         elif res in ("canceled", "cancelled", "CANCEL", "EXPIRE"):
             return OrderStatus.Canceled
@@ -281,10 +286,10 @@ class Trade:
         exec_amount: float,
         order: Order,
         misc="",
-    ) ->  'Trade':
+    ) -> 'Trade':
         return Trade(
             timestamp, market_created_timestamp,
             sym=order.sym, venue=order.venue, side=order.side, price=price, amount=exec_amount,
-            order_id=order.order_id, order_type=order.order_type, trade_id=trade_id, model_id=order.model_id, 
+            order_id=order.order_id, order_type=order.order_type, trade_id=trade_id, model_id=order.model_id,
             process_id=order.process_id, universal_id=uuid4().hex, misc=misc,
         )
