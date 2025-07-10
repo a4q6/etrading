@@ -45,7 +45,7 @@ class EMARealTime(CEP):
             self.prev_price = price
         elif price > 0 and abs(price / self.prev_price - 1) < 0.1:  # [NOTE] 10% threshold to avoid data missing
             # log return
-            r_t = np.log(price / self.prev_price)
+            r_t = np.log(price / self.prev_price) * 1e4
             # EMA[Price]
             self.ema_price = price if self.ema_price is None else self.alpha * price + (1 - self.alpha) * self.ema_price
             # EMA[Return]
@@ -57,6 +57,8 @@ class EMARealTime(CEP):
 
             self.latest_result = {
                 "timestamp": timestamp,
+                "sym": self.sym,
+                "venue": self.venue,
                 "ema_price": self.ema_price,
                 "ema_ret": self.ema_ret,
                 "ema_vol": self.ema_vol,
@@ -69,7 +71,7 @@ class EMARealTime(CEP):
             # logging
             self._counter += 1
             if self._counter == 10000:
-                self.logger.info(f"EMA({self.venue}, {self.sym}) = {self.latest_result}")
+                self.logger.info(f"EMA: {self.latest_result}")
                 self._counter = 0
 
     def _clean_buffer(self, now: datetime):
@@ -78,5 +80,5 @@ class EMARealTime(CEP):
             self.buffer.popleft()
 
     @property
-    def ema_hist(self) -> List[Dict[str, Any]]:
+    def history(self) -> List[Dict[str, Any]]:
         return list(self.buffer)

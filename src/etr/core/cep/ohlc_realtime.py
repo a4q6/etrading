@@ -16,10 +16,10 @@ class OHLCV(CEP):
         source_type: str = "Rate",
         log_file=None,
     ):
-        assert price_field_name in ["mid_price", "price"]
-        assert source_type in ["Rate", "MarketTrade"]
+        # assert price_field_name in ["mid_price", "price"]
+        # assert source_type in ["Rate", "MarketTrade"]
         super().__init__(logger_name=__class__.__name__, log_file=log_file)
-        self.logger.info("OHLC CEP initialized: ({}, {}, interval={}s, cache={}s)".format(sym, venue, interval, cache_duration))
+        self.logger.info("{} OHLC CEP initialized: ({}, {}, interval={}s, cache={}s)".format(source_type, sym, venue, interval, cache_duration))
 
         self.venue = venue
         self.sym = sym
@@ -104,5 +104,5 @@ class OHLCV(CEP):
             self.buffer.popleft()
 
     @property
-    def ohlc(self) -> List[Dict[str, Any]]:
+    def history(self) -> List[Dict[str, Any]]:
         return list(self.buffer)
