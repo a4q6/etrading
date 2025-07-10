@@ -61,6 +61,8 @@ class BitbankRestClient(ExchangeClientBase):
         self._transaction_cache: Dict[str, Trade] = {}
         self.strategy: StrategyBase = None
         self._margin_positions: Dict[Tuple[str], float] = {"initialized": False}  # sym -> (long, short)
+        self._last_stream_msg_timestamp = pd.NaT
+        self._last_order_timestamp = pd.NaT
 
 
     def _generate_signature(self, method: str, path: str, body: dict = None):
@@ -123,6 +125,9 @@ class BitbankRestClient(ExchangeClientBase):
         misc=None,
         **kwargs
     ):
+        if self._last_stream_msg_timestamp + datetime.timedelta(seconds=180) < self._last_order_timestamp:
+            raise RuntimeError(f"Latest stream message ({self._last_stream_msg_timestamp}) is too old. Streaming might be dead now.")
+
         # order info
         data = Order(
             datetime.datetime.now(datetime.timezone.utc), market_created_timestamp=pd.NaT, sym=sym,
@@ -191,6 +196,7 @@ class BitbankRestClient(ExchangeClientBase):
         })
         self._order_cache[data.order_id] = data
         asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (sent)
+        self._last_order_timestamp = datetime.datetime.now()
         return data
 
     async def cancel_order(
@@ -334,6 +340,7 @@ class BitbankRestClient(ExchangeClientBase):
         if "_data_type" not in msg:
             return
         dtype = msg.get("_data_type")
+        self._last_stream_msg_timestamp = datetime.datetime.now()
 
         if dtype == "Order":
             msg.pop("_data_type")
