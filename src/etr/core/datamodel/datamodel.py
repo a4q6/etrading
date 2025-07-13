@@ -36,7 +36,7 @@ class MarketTrade:
     trade_id: str = None
     order_ids: str = None
     misc: str = None
-    universal_id: str = field(default_factory=lambda _: uuid4().hex)
+    universal_id: str = field(default_factory=lambda : uuid4().hex)
 
     def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
@@ -63,7 +63,7 @@ class Rate:
     best_ask: float = np.nan
     mid_price: float = np.nan
     misc: str = None
-    universal_id: str = field(default_factory=lambda _: uuid4().hex)
+    universal_id: str = field(default_factory=lambda : uuid4().hex)
 
     def to_dict(self, to_string_timestamp=True):
         data = asdict(self)
@@ -93,7 +93,7 @@ class MarketBook:
     category: str = None
     bids: SortedDict = field(default_factory=SortedDict)
     asks: SortedDict = field(default_factory=SortedDict)
-    universal_id: str = field(default_factory=lambda _: uuid4().hex)
+    universal_id: str = field(default_factory=lambda : uuid4().hex)
     misc: str = None
 
     def to_dict(self, level=20, to_string_timestamp=True):
