@@ -49,6 +49,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self.time_window = time_window
         self._running = False
         self.loop = asyncio.get_event_loop()
+        self._last_reconnect_time = 0 
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -86,24 +87,24 @@ class BitbankPrivateStreamClient(SubscribeCallback):
                 self.token_info = res["data"]
                 return self.token_info["pubnub_channel"], self.token_info["pubnub_token"]
             
-    async def keep_token_alive(self, interval_sec: int = 300):
-        """トークン期限切れを防ぐために定期再接続"""
-        while self._running:
-            await asyncio.sleep(interval_sec)
-            self.logger.info("[Token Refresh] Proactively reconnecting...")
-            try:
-                self.pubnub.unsubscribe().channels([self.channel]).execute()
-                await asyncio.sleep(1)
-            except Exception as e:
-                self.logger.warning(f"[Token Refresh] Unsubscribe failed: {e}")
-            await self.connect()
+    # async def keep_token_alive(self, interval_sec: int = 300):
+    #     """トークン期限切れを防ぐために定期再接続"""
+    #     while self._running:
+    #         await asyncio.sleep(interval_sec)
+    #         self.logger.info("[Token Refresh] Proactively reconnecting...")
+    #         try:
+    #             self.pubnub.unsubscribe().channels([self.channel]).execute()
+    #             await asyncio.sleep(1)
+    #         except Exception as e:
+    #             self.logger.warning(f"[Token Refresh] Unsubscribe failed: {e}")
+    #         await self.connect()
 
     async def start(self):
         """接続・イベント処理・トークン更新を一括開始"""
         self._running = True
         asyncio.create_task(self._process_events())
         asyncio.create_task(self.connect())
-        asyncio.create_task(self.keep_token_alive(interval_sec=300))  # 5分ごとに再接続
+        # asyncio.create_task(self.keep_token_alive(interval_sec=300))  # 5分ごとに再接続
 
     async def close(self):
         self._running = False
@@ -132,8 +133,8 @@ class BitbankPrivateStreamClient(SubscribeCallback):
 
     def status(self, pubnub, status):
         self.logger.info(f"[STATUS] Category: {status.category}")
-        if status.category == "PNAccessDeniedCategory":
-            self.logger.info("Token expired, reconnecting...")
+        if time.time() - self._last_reconnect_time > 10 and status.category.name in ("PNAccessDeniedCategory", 'PNTimeoutCategory', 'PNNetworkIssuesCategory'):
+            self.logger.info("Token expired or invalid. Attempting reconnect...")
             asyncio.run_coroutine_threadsafe(self.reconnect(), self.loop)
 
     async def reconnect(self):
@@ -149,6 +150,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         try:
             await self.connect()
             self.logger.info("Reconnection complete")
+            self._last_reconnect_time = time.time()
         except Exception as e:
             self.logger.error(f"Exception during reconnect(): {e}", exc_info=True)
 
