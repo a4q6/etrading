@@ -39,7 +39,18 @@ class BinanceRestEoption:
             for ccy_pair in ccy_pairs
         }
         self.logger = LoggerFactory().get_logger(logger_name="main", log_file=log_file)
+        
+        self.session: aiohttp.ClientSession | None = None
 
+    async def ensure_session(self):
+        """セッションが無効なら新たに作る"""
+        if self.session is None or self.session.closed:
+            connector = aiohttp.TCPConnector(ttl_dns_cache=300)
+            self.session = aiohttp.ClientSession(connector=connector)
+
+    async def close_session(self):
+        if self.session and not self.session.closed:
+            await self.session.close()
 
     async def fetch_spot_prices(self, session):
         url = f"{BinanceRestEoption.REST_BASE}/api/v3/ticker/price"
@@ -86,18 +97,22 @@ class BinanceRestEoption:
             self.logger.error(f"Error while fetching IV data: {e}", exc_info=True)
             return pd.DataFrame()
 
-
     async def start(self):
+        self._running = True
+
         while self._running:
-            self.logger.info("Try fetching IV surface")
-            async with aiohttp.ClientSession() as session:
-                spot = await self.fetch_spot_prices(session)
-                iv = await self.fetch_iv_data(session)
+            try:
+                await self.ensure_session()
+                self.logger.info("Try fetching IV surface")
+
+                spot = await self.fetch_spot_prices(self.session)
+                iv = await self.fetch_iv_data(self.session)
+                self.logger.info(f"len(IV) = {len(iv)}, len(spot) = {len(spot)}")
+
                 if len(spot) > 0 and len(iv) > 0:
                     iv["spot"] = pd.Series(spot).reindex(iv.sym).values
                     iv["_data_type"] = "ImpliedVolatility"
 
-                    # publish
                     for key, group in iv.groupby(["_data_type", "sym", "venue"]):
                         for col in group.columns[group.columns.str.contains("time")]:
                             group[col] = group[col].astype(str)
@@ -107,25 +122,31 @@ class BinanceRestEoption:
                             "venue": key[2],
                             "records": group.to_dict(orient="records"),
                         }
-                        if self.publisher is not None: asyncio.create_task(self.publisher.send(records))
+                        if self.publisher is not None:
+                            asyncio.create_task(self.publisher.send(records))
 
-                    # write to TP
-                    d = iv.to_dict(orient="records")
-                    for record in d:
+                    for record in iv.to_dict(orient="records"):
                         record["timestamp"] = record["timestamp"].isoformat()
                         record["expiry_time"] = record["expiry_time"].isoformat()
-                        asyncio.create_task(self.ticker_plant[record["sym"]].info(json.dumps(record))) # store
-                    now = pd.Timestamp.now(tz="UTC")
-                    next_time = now.ceil(f"{self.polling_interval}s")
-                    sleep_duration = (next_time - now).total_seconds()
-                else:
-                    sleep_duration = 1
+                        asyncio.create_task(
+                            self.ticker_plant[record["sym"]].info(json.dumps(record))
+                        )
 
+            except Exception as e:
+                self.logger.error(f"Error in start(): {e}", exc_info=True)
+                # 念のためセッションを閉じて次ループで再生成させる
+                await self.close_session()
+
+            # 次のスリープ計算
+            now = pd.Timestamp.now(tz="UTC")
+            next_time = now.ceil(f"{self.polling_interval}s")
+            sleep_duration = (next_time - now).total_seconds()
             await asyncio.sleep(sleep_duration)
 
 
     async def close(self):
         self._running = False
+        await self.close_session()
         for logger in self.ticker_plant.values():
             logger.stop()
 
