@@ -56,6 +56,7 @@ class BitbankRestClient(ExchangeClientBase):
         self.closed_pnl = 0
         self.open_pnl = {}
         self.positions = {}  # {sym: (vwap, amount)}
+        self.pending_positions = False
 
         self._order_cache: Dict[str, Order] = {}
         self._transaction_cache: Dict[str, Trade] = {}
@@ -170,8 +171,12 @@ class BitbankRestClient(ExchangeClientBase):
             return res
         if res.get("success") != 1:
             self.logger.error(f"Failed to send new order (UUID = {data.universal_id})\n{res}")
-            self.logger.warning(f"Error cause: {self.get_error_cause(res)}")
-            raise RuntimeError(self.get_error_cause(res))
+            self.logger.error(f"Error cause: {self.get_error_cause(res)}")
+            data.order_status = OrderStatus.Canceled
+            data.misc = self.get_error_cause(res)
+            asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (canceled)
+            return data
+
         res = res["data"]
 
         # update order info
@@ -243,8 +248,17 @@ class BitbankRestClient(ExchangeClientBase):
             code = res.get("data").get("code")
             if code in [50026, 70019]:
                 oinfo.order_status = OrderStatus.Canceled
+                self.pending_positions = True
             elif code in [50027]:
                 oinfo.order_status = OrderStatus.Filled
+                self.pending_positions = True
+            self._order_cache[order_id] = oinfo
+
+            if self.pending_positions:
+                self.logger.info("Update open positions via REST API")
+                await self.fetch_open_positions()
+                self.pending_positions = False
+
             return deepcopy(oinfo)
 
     @staticmethod
@@ -311,13 +325,16 @@ class BitbankRestClient(ExchangeClientBase):
         res = await self._request("GET", "/v1/user/spot/trade_history", params=params)
         return res
 
-    async def fetch_open_positions(self):
+    async def fetch_open_positions(self) -> Dict:
         res = await self._request("GET", path="/v1/user/margin/positions")
         if res.get("success") != 1:
             self.logger.error(f"Failed to fetch open positions.")
             self.logger.warning(f"Error cause: {self.get_error_cause(res)}")
-        self._margin_positions = {(self.as_common_symbol(r["pair"]), r["position_side"]): float(r["open_amount"]) for r in res["data"]["positions"]}
-        return res["data"]
+            return res
+        else:
+            self._margin_positions = {(self.as_common_symbol(r["pair"]), r["position_side"]): float(r["open_amount"]) for r in res["data"]["positions"]}
+            self.logger.info(f"Updated margin position cache: {self._margin_positions}")
+            return res["data"]
 
     async def fetch_account_balance(self):
         res = await self._request("GET", path="/v1/user/assets")
@@ -340,7 +357,10 @@ class BitbankRestClient(ExchangeClientBase):
         if "_data_type" not in msg:
             return
         dtype = msg.get("_data_type")
-        self._last_stream_msg_timestamp = datetime.datetime.now()
+
+        if dtype in ("Order", "Trade"):
+            if "streaming" in msg.get("misc") and msg.get("venue") == "bitbank":
+               self._last_stream_msg_timestamp = datetime.datetime.now()
 
         if dtype == "Order":
             msg.pop("_data_type")

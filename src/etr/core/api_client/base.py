@@ -37,6 +37,7 @@ class ExchangeClientBase(ABC):
         self.closed_pnl = 0
         self.open_pnl = {}
         self.positions = {}  # {sym: (vwap, amount)}
+        self.pending_positions = False
         self.strategy: StrategyBase = None
 
     def register_strategy(self, strategy: StrategyBase):
