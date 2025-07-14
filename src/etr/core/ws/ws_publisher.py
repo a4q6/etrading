@@ -21,7 +21,7 @@ class LocalWsPublisher:
     def __init__(self, port: int = 8765):
         if self._initialized:
             return
-        log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
+        log_file = Path(Config.LOG_DIR).joinpath("publisher.log").as_posix()
         self.logger = LoggerFactory().get_logger(logger_name=__name__, log_file=log_file)
         self.port = port
         self._server = None
