@@ -11,6 +11,7 @@ import pytz
 import logging
 import janus
 import numpy as np
+from asyncio import Lock
 from uuid import uuid4
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -50,6 +51,7 @@ class BitbankPrivateStreamClient(SubscribeCallback):
         self._running = False
         self.loop = asyncio.get_event_loop()
         self._last_reconnect_time = 0 
+        self._reconnect_lock = Lock()
 
         # logger
         log_file = Path(Config.LOG_DIR).joinpath("main.log").as_posix()
@@ -134,25 +136,29 @@ class BitbankPrivateStreamClient(SubscribeCallback):
     def status(self, pubnub, status):
         self.logger.info(f"[STATUS] Category: {status.category}")
         if time.time() - self._last_reconnect_time > 10 and status.category.name in ("PNAccessDeniedCategory", 'PNTimeoutCategory', 'PNNetworkIssuesCategory'):
-            self.logger.info("Token expired or invalid. Attempting reconnect...")
-            asyncio.run_coroutine_threadsafe(self.reconnect(), self.loop)
+            if not self._reconnect_lock.locked():
+                self.logger.info("Token expired or invalid. Attempting reconnect...")
+                asyncio.run_coroutine_threadsafe(self.reconnect(), self.loop)
+            else:
+                self.logger.info("Reconnection process is already running, skip reconnection")
 
     async def reconnect(self):
-        self.logger.info("Reconnecting PubNub...")
-        if hasattr(self, "pubnub"):
-            try:
-                self.pubnub.unsubscribe().channels([self.channel]).execute()
-                self.pubnub.stop()  # 安全に完全停止
-                await asyncio.sleep(1)  # 明示的なクールダウン
-            except Exception as e:
-                self.logger.warning(f"Exception during unsubscribe: {e}", exc_info=True)
+        async with self._reconnect_lock:
+            self.logger.info("Reconnecting PubNub...")
+            if hasattr(self, "pubnub") and hasattr(self, "channel"):
+                try:
+                    self.pubnub.unsubscribe().channels([self.channel]).execute()
+                    self.pubnub.stop()  # 安全に完全停止
+                    await asyncio.sleep(1)  # 明示的なクールダウン
+                except Exception as e:
+                    self.logger.warning(f"Exception during unsubscribe: {e}", exc_info=True)
 
-        try:
-            await self.connect()
-            self.logger.info("Reconnection complete")
-            self._last_reconnect_time = time.time()
-        except Exception as e:
-            self.logger.error(f"Exception during reconnect(): {e}", exc_info=True)
+            try:
+                await self.connect()
+                self.logger.info("Reconnection complete")
+                self._last_reconnect_time = time.time()
+            except Exception as e:
+                self.logger.error(f"Exception during reconnect(): {e}", exc_info=True)
 
     def message(self, pubnub, message):
         """PubNubからのメッセージ受信時に呼ばれる（非同期キューへ）"""
