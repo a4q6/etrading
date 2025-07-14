@@ -19,7 +19,6 @@ if __name__ == "__main__":
         decimal=0,
         spread_threshold=3,
         client=client,
-        client=client,
         log_file="imb_mm.log"
     )
     client.register_strategy(strategy)
