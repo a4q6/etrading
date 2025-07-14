@@ -22,11 +22,11 @@ if __name__ == "__main__":
         log_file="imb_mm.log"
     )
     client.register_strategy(strategy)
-    strategy.warmup()
     subscriber = LocalWsClient(callbacks=[client.on_message, strategy.on_message], log_file="subscriber.log")
 
     # ws subsciber loop
     async def start_strategy():
+        await strategy.warmup()
         await subscriber.connect()
         await asyncio.sleep(1)
         await subscriber.subscribe([

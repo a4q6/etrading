@@ -76,7 +76,7 @@ class ImpactPrice(CEP):
                 self._clean_buffer(msg["timestamp"])
 
                 self._counter += 1
-                if self._counter % 3000:
+                if self._counter == 3000:
                     self.logger.info(f"ImpactPrice: {self.latest_result}")
                     self._counter = 0
 
