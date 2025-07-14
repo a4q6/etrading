@@ -132,8 +132,8 @@ class ImbMM_BB(StrategyBase):
         return price
 
     async def on_message(self, msg: Dict):
-        dtype: str = msg.get("_data_type")
-        if dtype.startswith("BT_") or dtype == "Heartbeat":
+        dtype: str | None = msg.get("_data_type")
+        if dtype is None or dtype.startswith("BT_") or dtype == "Heartbeat":
             return
 
         # update cep
