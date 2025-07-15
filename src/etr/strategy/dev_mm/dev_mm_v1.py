@@ -2,7 +2,6 @@ import time, datetime
 import numpy as np
 import pandas as pd
 import pytz
-from copy import deepcopy
 from uuid import uuid4
 from abc import ABC, abstractmethod
 from typing import Union, List, Dict, Callable, Tuple, Optional

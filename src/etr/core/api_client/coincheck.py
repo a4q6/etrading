@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from uuid import uuid4
 from typing import Optional, Dict, Union
-from copy import deepcopy
+from copy import copy
 from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
 from etr.strategy.base_strategy import StrategyBase
@@ -135,7 +135,7 @@ class CoincheckRestClient(ExchangeClientBase):
             await self.fetch_transactions()
             await self.check_order(order_id=order_info.order_id)
 
-        return deepcopy(self._order_cache[order_info.order_id])
+        return copy(self._order_cache[order_info.order_id])
 
     async def cancel_order(
         self,
@@ -167,7 +167,7 @@ class CoincheckRestClient(ExchangeClientBase):
                     oinfo.universal_id = uuid4().hex
                     self._order_cache[oinfo.order_id] = oinfo
                     asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store
-                    return deepcopy(oinfo)
+                    return copy(oinfo)
                 else:
                     error = await response.text()
                     self.logger.warning(f"Failed to cancel order_id = {order_id}: {response.status} - {error}")
@@ -227,7 +227,7 @@ class CoincheckRestClient(ExchangeClientBase):
                         oinfo.executed_amount = float(data["executed_amount"])
                     oinfo.universal_id = uuid4().hex
                     asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store order info
-                    return deepcopy(oinfo)
+                    return copy(oinfo)
                 else:
                     error = await response.text()
                     self.logger.warning(f"Failed to check order_id = {order_id}: {response.status} - {error}")
@@ -294,8 +294,8 @@ class CoincheckRestClient(ExchangeClientBase):
                                 price=float(msg["rate"]), exec_amount=abs(float(msg["funds"][base_ccy])),
                                 order=oinfo, misc=str(misc),
                             )
-                            self._transaction_cache[tid] = deepcopy(trade)
-                            self._order_cache[oid] = deepcopy(oinfo)
+                            self._transaction_cache[tid] = copy(trade)
+                            self._order_cache[oid] = copy(oinfo)
                             self.update_position(trade=trade)
                             await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
                             await self.strategy.on_message(trade.to_dict(to_string_timestamp=False))  # invoke strategy

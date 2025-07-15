@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple
 from dataclasses import dataclass, asdict, field
 from uuid import uuid4
 from sortedcontainers import SortedDict
+from asyncio import Lock
 
 
 @dataclass
@@ -159,6 +160,9 @@ class Order:
     misc: str = None
     universal_id: str = field(default_factory=lambda : uuid4().hex)
 
+    def __post_init__(self):
+        self._lock = Lock()
+    
     def to_dict(self, to_string_timestamp=True) -> Dict:
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
@@ -169,7 +173,15 @@ class Order:
         return data
 
     @property
-    def is_live(self):
+    def lock(self) -> Lock:
+        return self._lock
+
+    @property
+    def is_locked(self) -> bool:
+        return self._lock.locked()
+
+    @property
+    def is_live(self) -> bool:
         return (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
 
     @staticmethod

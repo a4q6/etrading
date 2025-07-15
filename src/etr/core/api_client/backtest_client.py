@@ -4,7 +4,7 @@ import pandas as pd
 from dataclasses import dataclass
 from uuid import uuid4
 from typing import Union, List, Dict, Callable, Set, Optional, Any
-from copy import deepcopy
+from copy import copy
 
 from etr.core.datamodel import OrderType, OrderStatus, Order, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
@@ -74,7 +74,7 @@ class BacktestClient(ExchangeClientBase):
             self.open_market_orders[order_info.order_id] = order_info
         elif order_type == OrderType.Limit:
             self.pending_limit_orders[order_info.order_id] = order_info
-        self.new_order_message[order_info.order_id] = deepcopy(order_info)
+        self.new_order_message[order_info.order_id] = copy(order_info)
         return order_info
 
     async def cancel_order(
@@ -94,7 +94,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo.src_id = src_id
         oinfo.order_status = OrderStatus.Canceled
         oinfo.misc = misc
-        self.cancel_order_message[oinfo.order_id] = deepcopy(oinfo)
+        self.cancel_order_message[oinfo.order_id] = copy(oinfo)
         return oinfo
 
     async def amend_order(
@@ -116,7 +116,7 @@ class BacktestClient(ExchangeClientBase):
         oinfo.src_timestamp = timestamp
         oinfo.src_id = src_id
         oinfo.misc = misc
-        self.amend_order_message[oinfo.order_id] = deepcopy(oinfo)
+        self.amend_order_message[oinfo.order_id] = copy(oinfo)
         return oinfo
 
     async def check_order(self, order_id: str) -> Order:
@@ -144,7 +144,7 @@ class BacktestClient(ExchangeClientBase):
                         o.price = msg["best_bid"] if o.side < 0 else msg["best_ask"]
                         o.executed_amount = o.amount
                         o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
-                        self.filled_orders_message[oid] = deepcopy(o)
+                        self.filled_orders_message[oid] = copy(o)
                         t = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"], price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
                         self.update_position(t)
                         self.transactions.append(t)
@@ -173,7 +173,7 @@ class BacktestClient(ExchangeClientBase):
                                 o.executed_amount = o.amount
                                 o.order_status = OrderStatus.Filled
                                 o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
-                                self.filled_orders_message[oid] = deepcopy(o)
+                                self.filled_orders_message[oid] = copy(o)
                                 t: Trade = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"],
                                                             price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
                                 self.update_position(t)

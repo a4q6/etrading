@@ -2,7 +2,7 @@ from .base_strategy import StrategyBase
 import time, datetime
 import numpy as np
 import pandas as pd
-from copy import deepcopy
+from copy import copy
 from uuid import uuid4
 from abc import ABC, abstractmethod
 from typing import Union, List, Dict, Callable, Tuple, Optional
@@ -36,7 +36,7 @@ class Sample(StrategyBase):
         dtype = msg.get("_data_type")
 
         if dtype == "Trade":
-            self.entry_order = deepcopy(self.entry_order)
+            self.entry_order = copy(self.entry_order)
             self.entry_order.timestamp = msg["timestamp"]
             self.entry_order.order_status = OrderStatus.Filled
 

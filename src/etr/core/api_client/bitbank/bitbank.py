@@ -7,7 +7,7 @@ import time
 import pandas as pd
 import asyncio
 from typing import Optional, Dict, Union, List, Tuple
-from copy import deepcopy
+from copy import copy
 from pathlib import Path
 from uuid import uuid4
 import pytz
@@ -201,6 +201,7 @@ class BitbankRestClient(ExchangeClientBase):
         })
         self._order_cache[data.order_id] = data
         asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (sent)
+        self.logger.info(f"Sent new order (order_id, type, side, price) = ({data.order_id}, {data.order_type}, {data.side}, {data.price})")
         self._last_order_timestamp = datetime.datetime.now()
         return data
 
@@ -230,7 +231,7 @@ class BitbankRestClient(ExchangeClientBase):
 
         if res.get("success") == 1:
             res = res["data"]
-            oinfo = deepcopy(self._order_cache[order_id])
+            oinfo = copy(self._order_cache[order_id])
             oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
             oinfo.market_created_timestamp = datetime.datetime.fromtimestamp(float(res["canceled_at"]) / 1000).replace(tzinfo=pytz.timezone("UTC"))
             oinfo.order_status = OrderStatus.Canceled
@@ -259,7 +260,7 @@ class BitbankRestClient(ExchangeClientBase):
                 await self.fetch_open_positions()
                 self.pending_positions = False
 
-            return deepcopy(oinfo)
+            return copy(oinfo)
 
     @staticmethod
     def get_error_cause(response: dict) -> str:
@@ -373,7 +374,7 @@ class BitbankRestClient(ExchangeClientBase):
                 oinfo.src_id = oinfo.universal_id
                 oinfo.src_timestamp = oinfo.timestamp
                 oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
-                self._order_cache[oinfo.order_id] = deepcopy(oinfo)
+                self._order_cache[oinfo.order_id] = copy(oinfo)
                 self.logger.info(f"Order status updated, order_id = {oinfo.order_id}, status = {oinfo.order_status}")
                 await self.strategy.on_message(oinfo.to_dict(to_string_timestamp=False))  # invoke strategy
                 asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))  # store in TP
