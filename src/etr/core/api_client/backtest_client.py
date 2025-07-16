@@ -6,7 +6,7 @@ from uuid import uuid4
 from typing import Union, List, Dict, Callable, Set, Optional, Any
 from copy import copy
 
-from etr.core.datamodel import OrderType, OrderStatus, Order, Trade, Rate
+from etr.core.datamodel import OrderType, OrderStatus, Order, BacktestOrder, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
 from etr.strategy.base_strategy import StrategyBase
 
@@ -50,8 +50,8 @@ class BacktestClient(ExchangeClientBase):
         src_id=None,
         misc=None,
         **kwargs
-    ) -> Order:
-        order_info = Order(
+    ) -> BacktestOrder:
+        order_info = BacktestOrder(
             timestamp,
             market_created_timestamp=pd.NaT,
             sym=sym,
@@ -86,7 +86,7 @@ class BacktestClient(ExchangeClientBase):
         src_id=None,
         misc=None,
         **kwargs
-    ) -> Order:
+    ) -> BacktestOrder:
         oinfo = self.open_limit_orders[order_id]
         oinfo.timestamp = timestamp
         oinfo.src_type = src_type
@@ -107,7 +107,7 @@ class BacktestClient(ExchangeClientBase):
         src_id=None,
         misc=None,
         **kwargs
-    ) -> Order:
+    ) -> BacktestOrder:
         oinfo = self.open_limit_orders[order_id]
         oinfo.timestamp = timestamp
         oinfo.price = price
@@ -119,7 +119,7 @@ class BacktestClient(ExchangeClientBase):
         self.amend_order_message[oinfo.order_id] = copy(oinfo)
         return oinfo
 
-    async def check_order(self, order_id: str) -> Order:
+    async def check_order(self, order_id: str) -> BacktestOrder:
         for orders in [self.open_limit_orders, self.open_market_orders]:
             oinfo = orders.get(order_id)
             if oinfo is not None:

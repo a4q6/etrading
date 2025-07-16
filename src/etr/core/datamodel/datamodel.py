@@ -162,7 +162,7 @@ class Order:
 
     def __post_init__(self):
         self._lock = Lock()
-    
+
     def to_dict(self, to_string_timestamp=True) -> Dict:
         data = asdict(self)
         data["_data_type"] = self.__class__.__name__
@@ -187,6 +187,43 @@ class Order:
     @staticmethod
     def null_order() -> 'Order':
         return Order(
+            timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
+            market_created_timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
+            sym="",
+            side=0,
+            price=np.nan,
+            amount=np.nan,
+            executed_amount=0,
+            order_type="",
+            order_status=OrderStatus.Canceled,
+            venue="",
+            universal_id="",
+        )
+
+
+class DummyLock:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, *args, **kwargs):
+        pass
+
+    def locked(self):
+        return False
+
+
+@dataclass
+class BacktestOrder(Order):
+    def __post_init__(self):
+        self._lock = DummyLock()
+
+    @staticmethod
+    def from_order(order: Order) -> 'BacktestOrder':
+        return BacktestOrder(**asdict(order))
+
+    @staticmethod
+    def null_order() -> 'BacktestOrder':
+        return BacktestOrder(
             timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
             market_created_timestamp=datetime.datetime(2000, 1, 1).astimezone(datetime.timezone.utc),
             sym="",

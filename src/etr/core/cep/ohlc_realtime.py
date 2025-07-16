@@ -41,21 +41,25 @@ class OHLCV(CEP):
 
         dt = msg.get("timestamp")
         if msg.get("venue") == self.venue and msg.get("sym") == self.sym:
-            price = msg.get(self.price_field_name)
-            self.latest_price = price if price is not None else None
+            self.latest_price = msg.get(self.price_field_name)
 
         if self.latest_price is not None:
-            # initialize
+            # initialize (executed once)
             if self.current_start is None:
                 self.current_start = self._floor_time(dt)
-                self._init_new_candle(price)
+                self._init_new_candle(self.latest_price)
 
             # create new candle if timestamp entered new time bar
             while dt >= self.current_start + timedelta(seconds=self.interval):
                 self._finalize_candle()
                 self.current_start += timedelta(seconds=self.interval)
-                self._init_new_candle(price)
+                self._init_new_candle(self.latest_price)
                 self._clean_buffer(now=dt)
+
+            # extract target price
+            price = msg.get(self.price_field_name)
+            if msg.get("venue") != self.venue or msg.get("sym") != self.sym:
+                price = None
 
             # update
             if price is not None:

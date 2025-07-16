@@ -27,6 +27,7 @@ class ImbMM_BB(StrategyBase):
         client: ExchangeClientBase,
         base_spread: float = 0.0,
         spread_threshold: float = 3,
+        ema_threshold: float = 0.2,
         exit_offset: float = 0,
         vol_coef: float = 10,
         ret_coef: float = 5,
@@ -56,10 +57,11 @@ class ImbMM_BB(StrategyBase):
         self.spread_threshold = spread_threshold
         self.vol_coef = vol_coef
         self.ret_coef = ret_coef
+        self.ema_threshold = ema_threshold
 
         # cep
         self.ohlc: Dict[Tuple, OHLCV] = {
-            (v, s): OHLCV(sym=s, venue=v, log_file=log_file, interval=1, cache_duration=60)
+            (v, s): OHLCV(sym=s, venue=v, log_file=log_file, interval=10, cache_duration=60)
             for (v, s) in references}
         self.ema: Dict[Tuple, EMARealTime] = {
             (v, s): EMARealTime(alpha=references[(v, s)]["alpha"], sym=s, venue=v, log_file=log_file)
@@ -188,14 +190,18 @@ class ImbMM_BB(StrategyBase):
         sufficient_imb = abs(self.impact_price[(self.venue, self.sym)].spread_imbalance) > self.spread_threshold
         imbalance_side = np.sign(self.impact_price[(self.venue, self.sym)].spread_imbalance)
         imbalance_signal = sufficient_imb * imbalance_side
-        ema_condition = all([imbalance_signal * (abs(cep.ema_ret) > 0.05) * np.sign(cep.ema_ret) >= 0 for cep in self.ema.values()])
+        ema_alert = any([abs(cep.ema_ret) > self.ema_threshold and imbalance_signal * cep.ema_ret < 0 for cep in self.ema.values()])
+        if np.isnan(imbalance_signal):
+            return
+        # ema_condition = all([imbalance_signal * (abs(cep.ema_ret) > self.ema_threshold) * np.sign(cep.ema_ret) >= 0 for cep in self.ema.values()])
 
-        if imbalance_signal and ema_condition:
-            side = np.sign(self.impact_price[(self.venue, self.sym)].spread_imbalance)
+        if imbalance_signal and not ema_alert:
+            # side = np.sign(self.impact_price[(self.venue, self.sym)].spread_imbalance)
+            side = imbalance_signal
             cur_side = self.entry_order.side * self.entry_order.is_live
             new_price = self.pricing(side)
 
-            if cur_side == 0 and msg["timestamp"] > self.entry_order.timestamp + datetime.timedelta(seconds=0.5):
+            if cur_side == 0 and msg["timestamp"] > self.entry_order.timestamp + datetime.timedelta(seconds=0.3):
                 # no live order
                 if not self.entry_order.is_locked:
                     async with self.entry_order.lock:
@@ -222,7 +228,7 @@ class ImbMM_BB(StrategyBase):
                 elif side == cur_side:
                     # live order in same side
                     is_cur_price_far = abs(new_price / self.entry_order.price - 1) * 1e4 > 0.1
-                    is_cur_price_old = (msg["timestamp"] - self.entry_order.timestamp > datetime.timedelta(seconds=0.5))
+                    is_cur_price_old = (msg["timestamp"] - self.entry_order.timestamp > datetime.timedelta(seconds=0.3))
                     if is_cur_price_far and is_cur_price_old:
                         if not self.entry_order.is_locked:
                             async with self.entry_order.lock:
@@ -243,7 +249,7 @@ class ImbMM_BB(StrategyBase):
                                 msg["timestamp"], self.sym, side=side, price=new_price, amount=self.amount, order_type=OrderType.Limit,
                                 src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="entry")
 
-        elif self.entry_order.is_live and msg["timestamp"] > self.entry_order.timestamp + datetime.timedelta(seconds=0.5):
+        elif self.entry_order.is_live and msg["timestamp"] > self.entry_order.timestamp + datetime.timedelta(seconds=0.3):
             if not self.entry_order.is_locked:
                 async with self.entry_order.lock:
                     self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
