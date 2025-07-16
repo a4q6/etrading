@@ -17,7 +17,8 @@ if __name__ == "__main__":
         venue="bitbank",
         amount=0.0001,
         decimal=0,
-        spread_threshold=3.5,
+        spread_threshold=3,
+        ema_threshold=0.2,
         client=client,
         log_file="imb_mm.log"
     )
