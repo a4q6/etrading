@@ -162,8 +162,9 @@ class ImbMM_BB(StrategyBase):
                 self.logger.info(f"Updated entry order status (order_id = {self.entry_order.order_id}, {self.entry_order.order_status})")
                 if self.entry_order.order_status in [OrderStatus.Filled]:
                     self.logger.info(f"ENTRY LIMIT ORDER FILLED")
-                    self.logger.info("Place exit limit order")
-                    await self._place_exit_order(msg, dtype)
+                    await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
+                    if not self.entry_order.is_locked:
+                        await self.entry_order.lock.acquire()  # lock
 
             if msg["order_id"] == self.exit_order.order_id:
                 msg.pop("_data_type")
@@ -171,6 +172,19 @@ class ImbMM_BB(StrategyBase):
                 self.logger.info(f"Updated exit order status || {self.exit_order.to_dict()}")
                 if self.exit_order.order_status in [OrderStatus.Filled]:
                     self.logger.info(f"EXIT LIMIT ORDER FILLED")
+                    await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
+                    if not self.exit_order.is_locked:
+                        await self.exit_order.lock.acquire()  # lock
+
+        elif dtype == "Trade":
+            if msg["order_id"] == self.entry_order.order_id:
+                self.logger.info("Entry order trade message arrived")
+                if self.entry_order.is_locked:
+                    await self.entry_order.lock.release()  # lock
+            if msg["order_id"] == self.exit_order.order_id:
+                self.logger.info("Exit order trade message arrived")
+                if self.exit_order.is_locked:
+                    await self.exit_order.lock.release()  # lock
 
         else:
             if self.cur_pos == 0:
@@ -229,7 +243,7 @@ class ImbMM_BB(StrategyBase):
                                 src_timestamp=msg["timestamp"],
                                 src_id=msg["universal_id"],
                             )
-                            place_new = True
+                            place_new = self.entry_order.order_status not in (OrderStatus.Filled, OrderStatus.Partial)
 
                 elif side == cur_side:
                     # live order in same side
@@ -245,7 +259,7 @@ class ImbMM_BB(StrategyBase):
                                     src_timestamp=msg["timestamp"],
                                     src_id=msg["universal_id"],
                                 )
-                                place_new = True
+                                place_new = self.entry_order.order_status not in (OrderStatus.Filled, OrderStatus.Partial)
 
                 if place_new:
                     if not self.entry_order.is_locked:

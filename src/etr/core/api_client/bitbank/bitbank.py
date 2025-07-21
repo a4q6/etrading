@@ -318,6 +318,31 @@ class BitbankRestClient(ExchangeClientBase):
             self._order_cache[order_id] = oinfo
             return copy(oinfo)
 
+    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str):
+        self.logger.info(f"Try canceling all open orders (sym={sym})...")
+        res = await self.fetch_open_orders(sym)
+        if res.get('success') != 1:
+            msg = self.get_error_cause(res)
+            raise RuntimeError(f"Failed to fetch open orders: ({msg})")
+            self.logger.error(f"Failed to fetch open orders: ({msg})", exc_info=True)
+        
+        orders = res["data"]["orders"]
+        results = []
+        for o in orders:
+            self.logger.info(f"Cancel order (order_id = {o['order_id']})")
+            try:
+                order = await self.cancel_order(
+                    order_id=str(o["order_id"]),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    src_type=None,
+                    src_timestamp=datetime.datetime.now(datetime.timezone.utc),
+                )
+                results.append(order)
+            except:
+                pass
+        self.logger.info(f"Canceled orders:\n{results}")
+        return results
+
     @staticmethod
     def get_error_cause(response: dict) -> str:
         code = response.get("data").get("code")

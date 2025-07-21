@@ -97,6 +97,10 @@ class BacktestClient(ExchangeClientBase):
         self.cancel_order_message[oinfo.order_id] = copy(oinfo)
         return oinfo
 
+    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str):
+        for oid, o in self.open_limit_orders.items():
+            await self.cancel_order(order_id=oid, timestamp=timestamp, src_type=None, src_timestamp=timestamp)
+
     async def amend_order(
         self,
         timestamp,
@@ -178,8 +182,8 @@ class BacktestClient(ExchangeClientBase):
                                                             price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
                                 self.update_position(t)
                                 self.transactions.append(t)
-                                await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
                                 await self.strategy.on_message(o.to_dict(to_string_timestamp=False))
+                                await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
                                 # filled_ids.append(oid)
 
                 self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if o.order_status not in (OrderStatus.Canceled, OrderStatus.Filled)}
