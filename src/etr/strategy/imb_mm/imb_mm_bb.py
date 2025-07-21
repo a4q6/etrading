@@ -61,13 +61,13 @@ class ImbMM_BB(StrategyBase):
 
         # cep
         self.ohlc: Dict[Tuple, OHLCV] = {
-            (v, s): OHLCV(sym=s, venue=v, log_file=log_file, interval=10, cache_duration=60)
+            (v, s): OHLCV(sym=s, venue=v, interval=60, cache_duration=60, log_file="cep.log")
             for (v, s) in references}
         self.ema: Dict[Tuple, EMARealTime] = {
-            (v, s): EMARealTime(alpha=references[(v, s)]["alpha"], sym=s, venue=v, log_file=log_file)
+            (v, s): EMARealTime(alpha=references[(v, s)]["alpha"], sym=s, venue=v, log_file="cep.log")
             for (v, s) in references}
         self.impact_price: Dict[Tuple, ImpactPrice] = {
-            (v, s): ImpactPrice(target_amount=references[(v, s)]["target_amount"], sym=s, venue=v, use_term_amount=False, log_file=log_file)
+            (v, s): ImpactPrice(target_amount=references[(v, s)]["target_amount"], sym=s, venue=v, use_term_amount=False, log_file="cep.log")
             for (v, s) in [(self.venue, self.sym)] if v != "binance"}
 
         # trading attributes
@@ -153,11 +153,6 @@ class ImbMM_BB(StrategyBase):
         if not self.warmup_done:
             return
 
-        # heartbeat
-        if self._log_timestamp + datetime.timedelta(seconds=60) < datetime.datetime.now():
-            self._log_timestamp = datetime.datetime.now()
-            self.logger.info("heartbeat")
-
         # realtime logic
         if dtype == "Order":
             # update order status
@@ -166,7 +161,7 @@ class ImbMM_BB(StrategyBase):
                 self.entry_order = Order(**msg)
                 self.logger.info(f"Updated entry order status (order_id = {self.entry_order.order_id}, {self.entry_order.order_status})")
                 if self.entry_order.order_status in [OrderStatus.Filled]:
-                    self.logger.info("ENTRY LIMIT ORDER FILLED")
+                    self.logger.info(f"ENTRY LIMIT ORDER FILLED")
                     self.logger.info("Place exit limit order")
                     await self._place_exit_order(msg, dtype)
 
@@ -175,15 +170,26 @@ class ImbMM_BB(StrategyBase):
                 self.exit_order = Order(**msg)
                 self.logger.info(f"Updated exit order status || {self.exit_order.to_dict()}")
                 if self.exit_order.order_status in [OrderStatus.Filled]:
-                    self.logger.info("EXIT LIMIT ORDER FILLED")
+                    self.logger.info(f"EXIT LIMIT ORDER FILLED")
 
         else:
             if self.cur_pos == 0:
+                # cancel exit limit
+                if self.exit_order.is_live and not self.exit_order.is_locked:
+                    async with self.exit_order.lock:
+                        self.logger.info(f"cancel unnecessary exit limit order {self.exit_order.order_id}")
+                        self.exit_order = await self.client.cancel_order(
+                            self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
                 # update bid/ask for entry
                 await self._place_entry_order(msg, dtype)
             else:
                 # update bid/ask for exit
                 await self._place_exit_order(msg, dtype)
+
+        # heartbeat
+        if self._log_timestamp + datetime.timedelta(seconds=60) < datetime.datetime.now():
+            self._log_timestamp = datetime.datetime.now()
+            self.logger.info("heartbeat")
 
     async def _place_entry_order(self, msg: Dict, dtype: str):
         # chack impact spread
@@ -274,14 +280,14 @@ class ImbMM_BB(StrategyBase):
                         self.exit_order.is_live
                         and self.exit_order.side < 0
                         and abs(new_ask / self.exit_order.price - 1) * 1e4 < 0.01
-                        and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
+                        # and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
                     )
                     if not use_existing:
-                        if self.exit_order.is_live and not self.exit_order.is_locked:
+                        if self.exit_order.is_live:
                             self.logger.info(f"cancel exit limit order {self.exit_order.order_id}")
                             self.exit_order = await self.client.cancel_order(
                                 self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
-                        if not self.exit_order.is_live and not self.exit_order.is_locked:
+                        if not self.exit_order.is_live:
                             self.logger.info("send exit limit order")
                             self.exit_order = await self.client.send_order(
                                 msg["timestamp"], self.sym, side=-1, price=new_ask, amount=self.amount, order_type=OrderType.Limit,
@@ -299,7 +305,7 @@ class ImbMM_BB(StrategyBase):
                         self.exit_order.is_live
                         and self.exit_order.side > 0
                         and abs(new_bid / self.exit_order.price - 1) * 1e4 < 0.01
-                        and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
+                        # and (msg["timestamp"] - self.exit_order.timestamp) < datetime.timedelta(seconds=1)
                     )
                     if not use_existing:
                         if self.exit_order.is_live:
@@ -311,3 +317,6 @@ class ImbMM_BB(StrategyBase):
                             self.exit_order = await self.client.send_order(
                                 msg["timestamp"], self.sym, side=+1, price=new_bid, amount=self.amount, order_type=OrderType.Limit,
                                 src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
+        else:
+            if msg["timestamp"].second == 0:
+                self.logger.info("No position, skip exit order")

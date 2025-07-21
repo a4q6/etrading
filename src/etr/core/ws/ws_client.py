@@ -54,7 +54,7 @@ class LocalWsClient:
                 await self._listen()
 
             except RuntimeError:
-                self.logger.error("RuntimeError detected. Stop connection.")
+                self.logger.error("RuntimeError detected. Stop connection.", exc_info=True)
                 await self.close()
 
             except Exception as e:

@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytz
 from urllib.parse import urlparse, urlencode
 
+from etr.core.api_client.realtime_counter import RealtimeCounter
 from etr.core.async_logger import AsyncBufferedLogger
 from etr.core.datamodel import VENUE, OrderType, OrderStatus, Order, Trade, Rate
 from etr.core.api_client.base import ExchangeClientBase
@@ -57,6 +58,7 @@ class BitbankRestClient(ExchangeClientBase):
         self.open_pnl = {}
         self.positions = {}  # {sym: (vwap, amount)}
         self.pending_positions = False
+        self._api_error_count = {code: RealtimeCounter(window_sec=10) for code in BITBANK_ERROR_CODES.keys()}
 
         self._order_cache: Dict[str, Order] = {}
         self._transaction_cache: Dict[str, Trade] = {}
@@ -127,6 +129,7 @@ class BitbankRestClient(ExchangeClientBase):
         **kwargs
     ):
         if self._last_stream_msg_timestamp + datetime.timedelta(seconds=180) < self._last_order_timestamp:
+            self.logger.error(f"Latest stream message ({self._last_stream_msg_timestamp}) is too old. Streaming might be dead now.")
             raise RuntimeError(f"Latest stream message ({self._last_stream_msg_timestamp}) is too old. Streaming might be dead now.")
 
         # order info
@@ -175,6 +178,19 @@ class BitbankRestClient(ExchangeClientBase):
             data.order_status = OrderStatus.Canceled
             data.misc = self.get_error_cause(res)
             asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))  # store (canceled)
+            
+            # increment error count
+            code = int(res.get("data").get("code"))
+            self._api_error_count[code].increment()
+
+            if self._api_error_count[50062].count > 30:
+                self.logger.info("Too many API error (50062), stop processing")
+                raise RuntimeError("Too many API error.")
+            elif self._api_error_count[50062].count > 4:  # 建玉数量を上回っています x N
+                # check order & posiitons
+                self.logger.info("Consective API error (50062) detected, enter reconciliation process")
+                await self._reconcile()
+
             return data
 
         res = res["data"]
@@ -204,6 +220,43 @@ class BitbankRestClient(ExchangeClientBase):
         self.logger.info(f"Sent new order (order_id, type, side, price) = ({data.order_id}, {data.order_type}, {data.side}, {data.price})")
         self._last_order_timestamp = datetime.datetime.now()
         return data
+
+    async def _reconcile(self):
+        self.logger.info("Start reconciliation")
+        self.pending_positions = True
+        await self.fetch_open_positions()  # check current account's position
+        symbols = set([o.sym for o in self._order_cache.values()])
+        for sym in symbols:
+            # transactions取得 => _order_cache にあるが、 _transaction_cache にないTradeについて messageを作成して on_messageに渡す
+            res = await self.fetch_transactions(sym)
+            transactions = res["data"]["trades"]
+            missing_trs = [msg for msg in transactions if str(msg["order_id"]) in self._order_cache and str(msg["trade_id"]) not in self._transaction_cache]
+            if len(missing_trs) > 0:
+                self.logger.info(f"Found missing transactions: {missing_trs}")
+                for trade_msg in missing_trs:
+                    # {'trade_id': 1415995982, 'order_id': 47771570657, 'pair': 'btc_jpy', 'side': 'sell', 'type': 'limit', 'amount': '0.0002', 'price': '17654577', 'maker_taker': 'maker', 'position_side': 'long', 'fee_amount_base': '0.00000000', 'fee_amount_quote': '-1.4129', 'fee_occurred_amount_quote': '-0.7062', 'profit_loss': '-1.25220082', 'interest': '0', 'executed_at': 1752702730478}
+                    trade = Trade(
+                        timestamp=datetime.datetime.now(datetime.timezone.utc),
+                        market_created_timestamp=datetime.datetime.fromtimestamp(
+                            trade_msg["executed_at"] / 1000, tz=datetime.timezone.utc
+                        ),
+                        sym=self.as_common_symbol(trade_msg["pair"]),
+                        venue=VENUE.BITBANK,
+                        side=1 if trade_msg["side"] == "buy" else -1,
+                        price=float(trade_msg["price"]),
+                        amount=float(trade_msg["amount"]),
+                        order_id=str(trade_msg["order_id"]),
+                        order_type=trade_msg["type"],  # "limit" or "market" or "stop"
+                        trade_id=str(trade_msg["trade_id"]),
+                        model_id=self.strategy.model_id,
+                        process_id=self.strategy.process_id,
+                        misc=str({'MT': trade_msg['maker_taker'], 'channel': 'REST'}),
+                    )
+                    asyncio.create_task(self.ticker_plant.info(json.dumps(trade.to_dict())))
+                    await self.on_message(trade.to_dict(to_string_timestamp=False))
+
+        self.pending_positions = False
+        self.logger.info("Reconciliation process done")
 
     async def cancel_order(
         self,
@@ -246,26 +299,29 @@ class BitbankRestClient(ExchangeClientBase):
         else:
             self.logger.warning(f"APIError: {self.get_error_cause(res)}")
             oinfo = self._order_cache[order_id]
-            code = res.get("data").get("code")
+            # increment error count
+            code = int(res.get("data").get("code"))
+            self._api_error_count[code].increment()
+
             if code in [50026, 70019]:
                 oinfo.order_status = OrderStatus.Canceled
-                self.pending_positions = True
-            elif code in [50027]:
-                oinfo.order_status = OrderStatus.Filled
-                self.pending_positions = True
-            self._order_cache[order_id] = oinfo
-
-            if self.pending_positions:
+                self._order_cache[order_id] = oinfo
                 self.logger.info("Update open positions via REST API")
                 await self.fetch_open_positions()
-                self.pending_positions = False
+    
+            elif code in [50027]:
+                oinfo.order_status = OrderStatus.Filled
+                self._order_cache[order_id] = oinfo
+                self.logger.info("Update open positions via REST API")
+                await self.fetch_open_positions()
 
+            self._order_cache[order_id] = oinfo
             return copy(oinfo)
 
     @staticmethod
     def get_error_cause(response: dict) -> str:
         code = response.get("data").get("code")
-        return BITBANK_ERROR_CODES.get(code)
+        return f"{BITBANK_ERROR_CODES.get(code)}({code})"
 
     async def check_order(self, order_id: str, sym: str = None, return_raw_response=False) -> Union[Dict, Order]:
         if sym is None:
@@ -334,7 +390,7 @@ class BitbankRestClient(ExchangeClientBase):
             return res
         else:
             self._margin_positions = {(self.as_common_symbol(r["pair"]), r["position_side"]): float(r["open_amount"]) for r in res["data"]["positions"]}
-            self.logger.info(f"Updated margin position cache: {self._margin_positions}")
+            self.logger.info(f"Updated margin position cache (REST) -- {self._margin_positions}")
             return res["data"]
 
     async def fetch_account_balance(self):
@@ -359,9 +415,10 @@ class BitbankRestClient(ExchangeClientBase):
             return
         dtype = msg.get("_data_type")
 
-        if dtype in ("Order", "Trade"):
-            if "streaming" in msg.get("misc") and msg.get("venue") == "bitbank":
-               self._last_stream_msg_timestamp = datetime.datetime.now()
+        if dtype in ("Order", "Trade") and "streaming" in msg.get("misc") and msg.get("venue") == "bitbank":
+            self._last_stream_msg_timestamp = datetime.datetime.now()
+        elif dtype == "PositionUpdate" and msg.get("venue") == "bitbank":
+            self._last_stream_msg_timestamp = datetime.datetime.now()
 
         if dtype == "Order":
             msg.pop("_data_type")
@@ -395,10 +452,11 @@ class BitbankRestClient(ExchangeClientBase):
                 await self.strategy.on_message(trade.to_dict(to_string_timestamp=False))  # invoke strategy
                 asyncio.create_task(self.ticker_plant.info(json.dumps(trade.to_dict())))  # store in TP
                 self.logger.info(f"Found new transaction: \n{trade.to_dict()}")
+                self.logger.info(f"Current position = {self.positions}")
 
         if dtype == "PositionUpdate":
             self._margin_positions[(msg["sym"], msg["position_side"])] = msg["open_amount"]
-            self.logger.info(f'Updated margin position cache -- {msg}')
+            self.logger.info(f'Updated margin position cache (Streaming) -- {msg}')
 
         # pop older cache
         t_theta = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=14)

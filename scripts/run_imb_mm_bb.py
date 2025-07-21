@@ -17,7 +17,7 @@ if __name__ == "__main__":
         venue="bitbank",
         amount=0.0001,
         decimal=0,
-        spread_threshold=3,
+        spread_threshold=3.5,
         ema_threshold=0.2,
         client=client,
         log_file="imb_mm.log"
@@ -42,9 +42,9 @@ if __name__ == "__main__":
             {"_data_type": "Rate", "venue": "binance", "sym": "BTCUSDT"},
         ])
         now = pd.Timestamp.today()
-        stop = (now + pd.Timedelta("2H"))
-        await asyncio.sleep((stop - now).total_seconds())
-        # await asyncio.sleep(1 * 60 * 24 * 365 * 10)
+        # stop = (now + pd.Timedelta("2H"))
+        # await asyncio.sleep((stop - now).total_seconds())
+        await asyncio.sleep(1 * 60 * 24 * 365 * 10)
 
     async def report(interval_min=60):
         while True:
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             # Account
             res = await client.fetch_open_positions()
             pos = pd.DataFrame(res["positions"])
-            pos = pos.set_index(["pair", "position_side"]).open_amount.unstack(level=-1).query("long != 0 or short !=0")
+            pos = pos.set_index(["pair", "position_side"]).open_amount.unstack(level=-1).astype(float).query("long != 0 or short !=0")
             send_discord_webhook("" + "\n" + str(pos.to_csv(sep="|")), username="BB-Open Positions")
 
     # start main logic
