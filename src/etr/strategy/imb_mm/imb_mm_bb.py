@@ -74,6 +74,7 @@ class ImbMM_BB(StrategyBase):
         self.entry_order: Order = Order.null_order()
         self.exit_order: Order = Order.null_order()
         self.latest_rate: Dict[Tuple[str, str], Dict[str, float]] = {}  # (venue, sym) -> {Rate}
+        self.latest_execution = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
         self.warmup_done = False
 
         # misc
@@ -162,9 +163,10 @@ class ImbMM_BB(StrategyBase):
                 self.logger.info(f"Updated entry order status (order_id = {self.entry_order.order_id}, {self.entry_order.order_status})")
                 if self.entry_order.order_status in [OrderStatus.Filled]:
                     self.logger.info(f"ENTRY LIMIT ORDER FILLED")
-                    await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
-                    if not self.entry_order.is_locked:
-                        await self.entry_order.lock.acquire()  # lock
+                    self.latest_execution = msg["timestamp"]
+                    async with self.entry_order.lock:
+                        async with self.exit_order.lock:
+                            await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
 
             if msg["order_id"] == self.exit_order.order_id:
                 msg.pop("_data_type")
@@ -172,21 +174,20 @@ class ImbMM_BB(StrategyBase):
                 self.logger.info(f"Updated exit order status || {self.exit_order.to_dict()}")
                 if self.exit_order.order_status in [OrderStatus.Filled]:
                     self.logger.info(f"EXIT LIMIT ORDER FILLED")
-                    await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
-                    if not self.exit_order.is_locked:
-                        await self.exit_order.lock.acquire()  # lock
+                    self.latest_execution = msg["timestamp"]
+                    async with self.entry_order.lock:
+                        async with self.exit_order.lock:
+                            await self.client.cancel_all_orders(timestamp=msg["timestamp"], sym=self.sym)
 
         elif dtype == "Trade":
             if msg["order_id"] == self.entry_order.order_id:
                 self.logger.info("Entry order trade message arrived")
-                if self.entry_order.is_locked:
-                    await self.entry_order.lock.release()  # lock
+                self.latest_execution = msg["timestamp"]
             if msg["order_id"] == self.exit_order.order_id:
                 self.logger.info("Exit order trade message arrived")
-                if self.exit_order.is_locked:
-                    await self.exit_order.lock.release()  # lock
+                self.latest_execution = msg["timestamp"]
 
-        else:
+        elif msg["timestamp"] > self.latest_execution + datetime.timedelta(seconds=0.5):
             if self.cur_pos == 0:
                 # cancel exit limit
                 if self.exit_order.is_live and not self.exit_order.is_locked:
