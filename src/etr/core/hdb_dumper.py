@@ -224,7 +224,7 @@ class HdbDumper:
                     self.logger.info(f'''\n{status}''')
                     if notification:
                         self.logger.info("Send notification message.")
-                        send_discord_webhook("EoD Process Finished!" + "\n" + str(status_table.set_index("date").to_csv(sep="|")), username="EoD-HDB")
+                        send_discord_webhook("EoD Process Finished!" + "\n" + str(status_table.set_index("date").to_csv(sep="|")), username="EoD-HDB", webhook_url=DISCORD_URL_ALL)
                 else:
                     self.logger.info(f"No HDB file found for {prev_date}")
 

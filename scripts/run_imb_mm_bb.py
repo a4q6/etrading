@@ -53,12 +53,12 @@ if __name__ == "__main__":
             res = await client.fetch_account_balance()
             assets = pd.DataFrame(res["assets"])
             assets = assets.set_index("asset").iloc[:, :5].astype(float).query("onhand_amount > 0")
-            send_discord_webhook("" + "\n" + str(assets.to_csv(sep="|")), username="BB-Account Balance")
+            send_discord_webhook("" + "\n" + str(assets.to_csv(sep="|")), username="BB-Account Balance", webhook_url=Config.DISCORD_URL_BB)
             # Account
             res = await client.fetch_open_positions()
             pos = pd.DataFrame(res["positions"])
             pos = pos.set_index(["pair", "position_side"]).open_amount.unstack(level=-1).astype(float).query("long != 0 or short !=0")
-            send_discord_webhook("" + "\n" + str(pos.to_csv(sep="|")), username="BB-Open Positions")
+            send_discord_webhook("" + "\n" + str(pos.to_csv(sep="|")), username="BB-Open Positions", webhook_url=Config.DISCORD_URL_BB)
 
     # start main logic
     async def main():

@@ -10,6 +10,7 @@ from etr.core.api_client import CoincheckRestClient
 from etr.core.datamodel import Order, Trade, OrderStatus, OrderType
 from etr.strategy import StrategyBase
 from etr.core.notification.discord import async_send_discord_webhook
+from etr.config import Config
 
 
 class TOD_v1(StrategyBase):
@@ -139,7 +140,7 @@ class TOD_v1(StrategyBase):
             balance = await self.client.fetch_balance()
             if balance.get("success", False):
                 message = f'JPY={balance["jpy"]}, XRP={balance["xrp"]}'
-                await async_send_discord_webhook(message=message, username="TOD_v1")
+                await async_send_discord_webhook(message=message, username="TOD_v1", webhook_url=Config.DISCORD_URL_CC)
                 amt = abs(float(balance["xrp"]))
                 if max([c["amount"] for c in self.entry_config]) * 3 < amt:
                     await async_send_discord_webhook(message="Detect abnormal position size, try stop processing", username="TOD_v1")
