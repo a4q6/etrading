@@ -157,6 +157,7 @@ class BitbankRestClient(ExchangeClientBase):
             if self._margin_positions.get("initialized") == False:
                 await self.fetch_open_positions()
             long, short = self._margin_positions[(sym, "long")], self._margin_positions[(sym, "short")]
+            # open order amountを加味しないといけない
             if side > 0:
                 if amount <= short:
                     body["position_side"] = "short"

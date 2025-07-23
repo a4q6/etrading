@@ -189,12 +189,6 @@ class ImbMM_BB(StrategyBase):
 
         elif msg["timestamp"] > self.latest_execution + datetime.timedelta(seconds=0.5):
             if self.cur_pos == 0:
-                # cancel exit limit
-                if self.exit_order.is_live and not self.exit_order.is_locked:
-                    async with self.exit_order.lock:
-                        self.logger.info(f"cancel unnecessary exit limit order {self.exit_order.order_id}")
-                        self.exit_order = await self.client.cancel_order(
-                            self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
                 # update bid/ask for entry
                 await self._place_entry_order(msg, dtype)
             else:
@@ -207,6 +201,14 @@ class ImbMM_BB(StrategyBase):
             self.logger.info("heartbeat")
 
     async def _place_entry_order(self, msg: Dict, dtype: str):
+
+        # cancel unnecessary exit order 
+        if self.exit_order.is_live and not self.exit_order.is_locked:
+            async with self.exit_order.lock:
+                self.logger.info(f"cancel unnecessary exit limit order {self.exit_order.order_id}")
+                self.exit_order = await self.client.cancel_order(
+                    self.exit_order.order_id, timestamp=msg["timestamp"], src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"])
+
         # chack impact spread
         sufficient_imb = abs(self.impact_price[(self.venue, self.sym)].spread_imbalance) > self.spread_threshold
         imbalance_side = np.sign(self.impact_price[(self.venue, self.sym)].spread_imbalance)
@@ -283,6 +285,18 @@ class ImbMM_BB(StrategyBase):
                     )
 
     async def _place_exit_order(self, msg: Dict, dtype: str):
+        
+        if self.entry_order.is_live and not self.entry_order.is_locked:
+            async with self.entry_order.lock:
+                self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
+                self.entry_order = await self.client.cancel_order(
+                    self.entry_order.order_id,
+                    timestamp=msg["timestamp"],
+                    src_type=dtype,
+                    src_timestamp=msg["timestamp"],
+                    src_id=msg["universal_id"],
+                )
+
         if self.cur_pos > 0:
             if self.latest_rate["best_bid"] < self.latest_rate["best_ask"] - 10 ** self.decimal:
                 ask = self.latest_rate["best_ask"] - 10 ** self.decimal
