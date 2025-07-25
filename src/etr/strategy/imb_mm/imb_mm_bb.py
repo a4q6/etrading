@@ -128,9 +128,9 @@ class ImbMM_BB(StrategyBase):
         price = mid + spread * (-1 * side)
         price = price + np.mean([cep.ema_ret for cep in self.ema.values()]) * self.ret_coef
         if side > 0:
-            price = self.my_floor(min(bid, price))
+            price = self.my_floor(min(bid + 10 ** (-self.decimal), price))
         else:
-            price = self.my_ceil(min(ask, price))
+            price = self.my_ceil(max(ask - 10 ** (-self.decimal), price))
         return price
 
     async def on_message(self, msg: Dict):
