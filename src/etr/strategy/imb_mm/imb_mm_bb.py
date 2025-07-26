@@ -41,6 +41,7 @@ class ImbMM_BB(StrategyBase):
         },
         model_id="ImbMM_BB",
         log_file=None,
+        legacy=True,
     ):
         super().__init__(model_id, log_file)
         # parameters
@@ -58,6 +59,7 @@ class ImbMM_BB(StrategyBase):
         self.vol_coef = vol_coef
         self.ret_coef = ret_coef
         self.ema_threshold = ema_threshold
+        self.legacy = legacy
 
         # cep
         self.ohlc: Dict[Tuple, OHLCV] = {
@@ -127,10 +129,20 @@ class ImbMM_BB(StrategyBase):
         # spread = spread + mid * np.mean([cep.impact_spread / 2 / 1e4 for cep in self.impact_price.values()])  # impact spread
         price = mid + spread * (-1 * side)
         price = price + np.mean([cep.ema_ret for cep in self.ema.values()]) * self.ret_coef
-        if side > 0:
-            price = self.my_floor(min(bid + 10 ** (-self.decimal), price))
+        if self.legacy:
+            if side > 0:
+                price = self.my_floor(min(bid, price))
+            else:
+                price = self.my_ceil(min(ask, price))
         else:
-            price = self.my_ceil(max(ask - 10 ** (-self.decimal), price))
+            if side > 0:
+                price = self.my_floor(min(bid + 10 ** (-self.decimal), price))
+                if ask <= price:
+                    price = ask - 10 ** (-self.decimal)
+            else:
+                price = self.my_ceil(max(ask - 10 ** (-self.decimal), price))
+                if price <= bid:
+                    price = bid + 10 ** (-self.decimal)
         return price
 
     async def on_message(self, msg: Dict):
@@ -202,7 +214,7 @@ class ImbMM_BB(StrategyBase):
 
     async def _place_entry_order(self, msg: Dict, dtype: str):
 
-        # cancel unnecessary exit order 
+        # cancel unnecessary exit order
         if self.exit_order.is_live and not self.exit_order.is_locked:
             async with self.exit_order.lock:
                 self.logger.info(f"cancel unnecessary exit limit order {self.exit_order.order_id}")
@@ -285,7 +297,7 @@ class ImbMM_BB(StrategyBase):
                     )
 
     async def _place_exit_order(self, msg: Dict, dtype: str):
-        
+
         if self.entry_order.is_live and not self.entry_order.is_locked:
             async with self.entry_order.lock:
                 self.logger.info(f"cancel entry limit order {self.entry_order.order_id}")
@@ -298,8 +310,8 @@ class ImbMM_BB(StrategyBase):
                 )
 
         if self.cur_pos > 0:
-            if self.latest_rate["best_bid"] < self.latest_rate["best_ask"] - 10 ** self.decimal:
-                ask = self.latest_rate["best_ask"] - 10 ** self.decimal
+            if self.latest_rate["best_bid"] < self.latest_rate["best_ask"] - 10 ** (-self.decimal):
+                ask = self.latest_rate["best_ask"] - 10 ** (-self.decimal)
             else:
                 ask = self.latest_rate["best_ask"]
             new_ask = self.my_ceil((1 + self.exit_offset / 1e4) * ask)
@@ -323,8 +335,8 @@ class ImbMM_BB(StrategyBase):
                                 src_type=dtype, src_timestamp=msg["timestamp"], src_id=msg["universal_id"], misc="exit")
 
         elif self.cur_pos < 0:
-            if self.latest_rate["best_ask"] > self.latest_rate["best_bid"] + 10 ** self.decimal:
-                bid = self.latest_rate["best_bid"] + 10 ** self.decimal
+            if self.latest_rate["best_ask"] > self.latest_rate["best_bid"] + 10 ** (-self.decimal):
+                bid = self.latest_rate["best_bid"] + 10 ** (-self.decimal)
             else:
                 bid = self.latest_rate["best_bid"]
             new_bid = self.my_ceil((1 - self.exit_offset / 1e4) * bid)
