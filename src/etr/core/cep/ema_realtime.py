@@ -27,7 +27,7 @@ class EMARealTime(CEP):
         self.ema_ret: Optional[float] = None
         self.ema_vol: Optional[float] = None
         self.ema_squared_return: Optional[float] = None
-        self.latest_result: Dict[str, Optional[float]] = {"timestamp": None, "ema_ret": None, "ema_vol": None}
+        self.latest_result: Dict[str, Optional[float]] = {"timestamp": None, "sym": self.sym, "venue": self.venue, "ema_ret": None, "ema_vol": None}
         self.buffer = deque()
         self._counter = 0
 

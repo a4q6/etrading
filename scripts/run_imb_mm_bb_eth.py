@@ -1,0 +1,86 @@
+import asyncio
+import datetime
+import pandas as pd
+import numpy as np
+from etr.core.ws import LocalWsClient
+from etr.strategy.imb_mm.imb_mm_bb import ImbMM_BB
+from etr.core.api_client import BitbankRestClient
+from etr.core.notification.discord import send_discord_webhook
+from etr.config import Config
+
+
+if __name__ == "__main__":
+
+    # initialize
+    client = BitbankRestClient(log_file="imb_mm_eth.log", tp_number=3)
+    strategy = ImbMM_BB(
+        sym="ETHJPY",
+        venue="bitbank",
+        amount=0.0001,
+        decimal=0,
+        spread_threshold=2,
+        ema_threshold=0.1,
+        client=client,
+        references={
+            ('bitbank', 'ETHJPY'): {'target_amount': 5, 'alpha': 0.1}, 
+            ('bitmex', 'ETHUSD'): {'target_amount': np.nan, 'alpha': 0.1}, 
+            ('binance', 'ETHUSDT'): {'target_amount': np.nan, 'alpha': 0.1}},
+        log_file="imb_mm_eth.log",
+        legacy=False,
+    )
+    client.register_strategy(strategy)
+    subscriber = LocalWsClient(callbacks=[client.on_message, strategy.on_message], log_file="subscriber_imb_mm_eth.log")
+
+    # ws subsciber loop
+    async def start_strategy():
+        await strategy.warmup()
+        await subscriber.connect()
+        await asyncio.sleep(1)
+        await subscriber.subscribe([
+            # position data
+            {"_data_type": "Order", "venue": "bitbank", "sym": "ETHJPY"},
+            {"_data_type": "Trade", "venue": "bitbank", "sym": "ETHJPY"},
+            {"_data_type": "PositionUpdate", "venue": "bitbank", "sym": "ETHJPY"},
+            # market data
+            {"_data_type": "Rate", "venue": "bitbank", "sym": "ETHJPY"},
+            {"_data_type": "MarketBook", "venue": "bitbank", "sym": "ETHJPY"},
+            {"_data_type": "Rate", "venue": "bitmex", "sym": "ETHUSD"},
+            {"_data_type": "Rate", "venue": "binance", "sym": "ETHUSDT"},
+        ])
+        now = pd.Timestamp.today()
+        # stop = (now + pd.Timedelta("2H"))
+        # await asyncio.sleep((stop - now).total_seconds())
+        await asyncio.sleep(1 * 60 * 24 * 365 * 10)
+
+    async def report(interval_min=60):
+        while True:
+            await asyncio.sleep(60 * interval_min)
+            # Account Balance
+            # res = await client.fetch_account_balance()
+            # assets = pd.DataFrame(res["assets"])
+            # assets = assets.set_index("asset").iloc[:, :5].astype(float).query("onhand_amount > 0")
+            # send_discord_webhook("" + "\n" + str(assets.to_csv(sep="|")), username="BB-Account Balance", webhook_url=Config.DISCORD_URL_BB)
+            # # Account
+            # res = await client.fetch_open_positions()
+            # pos = pd.DataFrame(res["positions"])
+            # pos = pos.set_index(["pair", "position_side"]).open_amount.unstack(level=-1).astype(float).query("long != 0 or short !=0")
+            # send_discord_webhook("" + "\n" + str(pos.to_csv(sep="|")), username="BB-Open Positions", webhook_url=Config.DISCORD_URL_BB)
+
+    # start main logic
+    async def main():
+        try:
+            await asyncio.gather(
+                start_strategy(),
+                report(),
+            )
+        except KeyboardInterrupt:
+            print("Interrupted by user")
+        except Exception as e:
+            strategy.logger.error(f"{e}", exc_info=True)
+        finally:
+            print("Closing connections...")
+            await asyncio.gather(
+                subscriber.close(),
+            )
+
+    asyncio.run(main())

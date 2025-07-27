@@ -6,12 +6,13 @@ from etr.core.ws import LocalWsClient
 from etr.strategy.imb_mm.imb_mm_bb import ImbMM_BB
 from etr.core.api_client import BitbankRestClient
 from etr.core.notification.discord import send_discord_webhook
+from etr.config import Config
 
 
 if __name__ == "__main__":
 
     # initialize
-    client = BitbankRestClient(log_file="imb_mm.log", tp_number=2)
+    client = BitbankRestClient(log_file="imb_mm_btc.log", tp_number=2)
     strategy = ImbMM_BB(
         sym="BTCJPY",
         venue="bitbank",
@@ -20,10 +21,11 @@ if __name__ == "__main__":
         spread_threshold=3.5,
         ema_threshold=0.2,
         client=client,
-        log_file="imb_mm.log"
+        log_file="imb_mm_btc.log",
+        legacy=False,
     )
     client.register_strategy(strategy)
-    subscriber = LocalWsClient(callbacks=[client.on_message, strategy.on_message], log_file="subscriber.log")
+    subscriber = LocalWsClient(callbacks=[client.on_message, strategy.on_message], log_file="imb_mm_btc_subscriber.log")
 
     # ws subsciber loop
     async def start_strategy():

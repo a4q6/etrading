@@ -63,13 +63,13 @@ class ImbMM_BB(StrategyBase):
 
         # cep
         self.ohlc: Dict[Tuple, OHLCV] = {
-            (v, s): OHLCV(sym=s, venue=v, interval=60, cache_duration=60, log_file="cep.log")
+            (v, s): OHLCV(sym=s, venue=v, interval=60, cache_duration=60, log_file=f"cep_{log_file}")
             for (v, s) in references}
         self.ema: Dict[Tuple, EMARealTime] = {
-            (v, s): EMARealTime(alpha=references[(v, s)]["alpha"], sym=s, venue=v, log_file="cep.log")
+            (v, s): EMARealTime(alpha=references[(v, s)]["alpha"], sym=s, venue=v, log_file=f"cep_{log_file}")
             for (v, s) in references}
         self.impact_price: Dict[Tuple, ImpactPrice] = {
-            (v, s): ImpactPrice(target_amount=references[(v, s)]["target_amount"], sym=s, venue=v, use_term_amount=False, log_file="cep.log")
+            (v, s): ImpactPrice(target_amount=references[(v, s)]["target_amount"], sym=s, venue=v, use_term_amount=False, log_file=f"cep_{log_file}")
             for (v, s) in [(self.venue, self.sym)] if v != "binance"}
 
         # trading attributes
@@ -133,7 +133,7 @@ class ImbMM_BB(StrategyBase):
             if side > 0:
                 price = self.my_floor(min(bid, price))
             else:
-                price = self.my_ceil(min(ask, price))
+                price = self.my_ceil(max(ask, price))
         else:
             if side > 0:
                 price = self.my_floor(min(bid + 10 ** (-self.decimal), price))
