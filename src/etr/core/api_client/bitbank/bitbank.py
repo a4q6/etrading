@@ -309,7 +309,7 @@ class BitbankRestClient(ExchangeClientBase):
                 self._order_cache[order_id] = oinfo
                 self.logger.info("Update open positions via REST API")
                 await self.fetch_open_positions()
-    
+
             elif code in [50027]:
                 oinfo.order_status = OrderStatus.Filled
                 self._order_cache[order_id] = oinfo
@@ -324,9 +324,9 @@ class BitbankRestClient(ExchangeClientBase):
         res = await self.fetch_open_orders(sym)
         if res.get('success') != 1:
             msg = self.get_error_cause(res)
-            raise RuntimeError(f"Failed to fetch open orders: ({msg})")
             self.logger.error(f"Failed to fetch open orders: ({msg})", exc_info=True)
-        
+            raise RuntimeError(f"Failed to fetch open orders: ({msg})")
+
         orders = res["data"]["orders"]
         results = []
         for o in orders:

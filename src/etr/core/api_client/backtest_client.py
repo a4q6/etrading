@@ -16,8 +16,10 @@ class BacktestClient(ExchangeClientBase):
     def __init__(
         self,
         venue: str,
+        min_amount_decimal=4,
     ):
         self.venue = venue
+        self.min_amount_decimal = min_amount_decimal
         self.strategy: StrategyBase = None
 
         self.new_order_message: Dict[str, Order] = {}
@@ -95,11 +97,12 @@ class BacktestClient(ExchangeClientBase):
         oinfo.order_status = OrderStatus.Canceled
         oinfo.misc = misc
         self.cancel_order_message[oinfo.order_id] = copy(oinfo)
-        return oinfo
+        return copy(oinfo)
 
-    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str):
+    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str, side: int = None):
         for oid, o in self.open_limit_orders.items():
-            await self.cancel_order(order_id=oid, timestamp=timestamp, src_type=None, src_timestamp=timestamp)
+            if side is None or side == o.side:
+                await self.cancel_order(order_id=oid, timestamp=timestamp, src_type=None, src_timestamp=timestamp)
 
     async def amend_order(
         self,
@@ -160,31 +163,33 @@ class BacktestClient(ExchangeClientBase):
             elif dtype == "BT_MarketTrade" and msg.get("venue") == self.venue:
                 # Check Limit Orders
                 sym = msg.get("sym")
-                # filled_ids = []
                 for oid, o in self.open_limit_orders.items():
                     if o.sym == sym:
                         if (o.side * msg["side"] < 0) and ((msg["price"] - o.price) * o.side <= 0):
-                            filled = False
+                            filled_amount = 0
                             if msg["price"] == o.price:
                                 # potentially filled
-                                side = "bids" if o.side > 0 else "asks"
-                                b = np.array(self._latest_book[side].tolist())
-                                amount = b[(b[:, 0] - msg["price"]) * o.side >= 0, 1].sum()
-                                filled = msg["amount"] > amount * 0.5  # done if MO amount is larger than 50% of market book
+                                book_side = "bids" if o.side > 0 else "asks"
+                                b = np.array(self._latest_book[book_side].tolist())
+                                book_amount = b[(b[:, 0] - msg["price"]) * o.side >= 0, 1].sum()
+                                mo_amount = max(msg["amount"] - book_amount, 0)
+                                remain_amount = o.amount - o.executed_amount
+                                filled_amount = min(remain_amount * (mo_amount / (book_amount + 1e-6)), remain_amount)
+                                filled_amount = round(filled_amount, self.min_amount_decimal)
                             else:
-                                filled = True
-                            if filled:
-                                o.executed_amount = o.amount
-                                o.order_status = OrderStatus.Filled
+                                remain_amount = o.amount - o.executed_amount
+                                filled_amount = round(min(remain_amount, msg["amount"]), self.min_amount_decimal)
+                            if filled_amount > 0:
+                                o.executed_amount += filled_amount
+                                o.order_status = OrderStatus.Filled if abs(o.amount - o.executed_amount) < 1e-6 else OrderStatus.Partial
                                 o.timestamp = o.market_created_timestamp = msg["market_created_timestamp"]
                                 self.filled_orders_message[oid] = copy(o)
                                 t: Trade = Trade.from_order(msg["market_created_timestamp"], msg["market_created_timestamp"],
-                                                            price=o.price, trade_id=uuid4().hex, exec_amount=o.executed_amount, order=o)
+                                                            price=o.price, trade_id=uuid4().hex, exec_amount=filled_amount, order=o)
                                 self.update_position(t)
                                 self.transactions.append(t)
                                 await self.strategy.on_message(o.to_dict(to_string_timestamp=False))
                                 await self.strategy.on_message(t.to_dict(to_string_timestamp=False))
-                                # filled_ids.append(oid)
 
                 self.open_limit_orders = {oid: o for oid, o in self.open_limit_orders.items() if o.order_status not in (OrderStatus.Canceled, OrderStatus.Filled)}
 

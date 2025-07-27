@@ -77,13 +77,17 @@ class ExchangeClientBase(ABC):
     @abstractmethod
     async def cancel_order(
         self,
-        order_id: str, 
-        timestamp: datetime.datetime, 
+        order_id: str,
+        timestamp: datetime.datetime,
         src_type: str,
         src_timestamp: datetime.datetime,
         src_id: str = None,
         **kwargs
     ) -> Order:
+        pass
+
+    @abstractmethod
+    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str, side: int = None):
         pass
 
     @abstractmethod
@@ -100,7 +104,7 @@ class ExchangeClientBase(ABC):
 
     def update_position(self, trade: Trade) -> None:
         sym = trade.sym
-        if not sym in self.positions or self.positions[sym][1] == 0:
+        if sym not in self.positions or self.positions[sym][1] == 0:
             # New
             self.positions[sym] = [trade.price, trade.amount * trade.side]
         else:
