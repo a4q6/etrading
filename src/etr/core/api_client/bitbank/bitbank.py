@@ -187,9 +187,12 @@ class BitbankRestClient(ExchangeClientBase):
             if self._api_error_count[50062].count > 30:
                 self.logger.info("Too many API error (50062), stop processing")
                 raise RuntimeError("Too many API error.")
-            elif self._api_error_count[50062].count > 4:  # 建玉数量を上回っています x N
+            elif self._api_error_count[50062].count > 2:  # 建玉数量を上回っています x N
                 # check order & posiitons
                 self.logger.info("Consective API error (50062) detected, enter reconciliation process")
+                if len(self._order_cache) > 0:
+                    for sym in set([o.sym for o in self._order_cache.values()]):
+                        await self.cancel_all_orders(timestamp=datetime.datetime.now(tz=datetime.timezone.utc), sym=sym, own_only=True)
                 await self._reconcile()
 
             return data
@@ -319,7 +322,7 @@ class BitbankRestClient(ExchangeClientBase):
             self._order_cache[order_id] = oinfo
             return copy(oinfo)
 
-    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str):
+    async def cancel_all_orders(self, timestamp: datetime.datetime, sym: str, own_only=False):
         self.logger.info(f"Try canceling all open orders (sym={sym})...")
         res = await self.fetch_open_orders(sym)
         if res.get('success') != 1:
@@ -330,17 +333,18 @@ class BitbankRestClient(ExchangeClientBase):
         orders = res["data"]["orders"]
         results = []
         for o in orders:
-            self.logger.info(f"Cancel order (order_id = {o['order_id']})")
-            try:
-                order = await self.cancel_order(
-                    order_id=str(o["order_id"]),
-                    timestamp=datetime.datetime.now(datetime.timezone.utc),
-                    src_type=None,
-                    src_timestamp=datetime.datetime.now(datetime.timezone.utc),
-                )
-                results.append(order)
-            except:
-                pass
+            if not own_only or str(o["order_id"]) in self._order_cache:
+                self.logger.info(f"Cancel order (order_id = {o['order_id']})")
+                try:
+                    order = await self.cancel_order(
+                        order_id=str(o["order_id"]),
+                        timestamp=datetime.datetime.now(datetime.timezone.utc),
+                        src_type=None,
+                        src_timestamp=datetime.datetime.now(datetime.timezone.utc),
+                    )
+                    results.append(order)
+                except:
+                    pass
         self.logger.info(f"Canceled orders:\n{results}")
         return results
 
