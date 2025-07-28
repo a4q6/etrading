@@ -497,8 +497,7 @@ class BitbankRestClient(ExchangeClientBase):
 
 
     async def fetch_ticker(self, sym: str, return_raw_response=True):
-        params = {"pair": self.as_bb_symbol(sym)}
-        res = await self._request("GET", "/v1/pair/ticker", params=params)
-        if return_raw_response:
-            return res
-        return res
+        async with aiohttp.ClientSession() as session:
+            async with session.get("https://public.bitbank.cc/tickers") as resp:
+                resp.raise_for_status()
+                return await resp.json()
