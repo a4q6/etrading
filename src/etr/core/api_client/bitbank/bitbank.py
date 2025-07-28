@@ -159,12 +159,12 @@ class BitbankRestClient(ExchangeClientBase):
             long, short = self._margin_positions[(sym, "long")], self._margin_positions[(sym, "short")]
             # open order amountを加味しないといけない
             if side > 0:
-                if amount <= short:
+                if round(amount, 6) <= round(short, 6):
                     body["position_side"] = "short"
                 else:
                     body["position_side"] = "long"
             elif side < 0:
-                if amount <= long:
+                if round(amount, 6) <= round(long, 6):
                     body["position_side"] = "long"
                 else:
                     body["position_side"] = "short"
@@ -494,3 +494,11 @@ class BitbankRestClient(ExchangeClientBase):
             self._order_cache = {k: o for k, o in self._order_cache.items() if t_theta < o.timestamp}
         if len(self._transaction_cache) > 10000:
             self._transaction_cache = {k: t for k, t in self._transaction_cache.items() if t_theta < t.timestamp}
+
+
+    async def fetch_ticker(self, sym: str, return_raw_response=True):
+        params = {"pair": self.as_bb_symbol(sym)}
+        res = await self._request("GET", "/v1/pair/ticker", params=params)
+        if return_raw_response:
+            return res
+        return res
