@@ -502,6 +502,7 @@ class BitbankRestClient(ExchangeClientBase):
                 if return_raw_response:
                     return await resp.json()
                 else:
+                    res = resp.json()
                     df = (
                         pd.DataFrame(res["data"])
                         .assign(
