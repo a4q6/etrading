@@ -495,9 +495,19 @@ class BitbankRestClient(ExchangeClientBase):
         if len(self._transaction_cache) > 10000:
             self._transaction_cache = {k: t for k, t in self._transaction_cache.items() if t_theta < t.timestamp}
 
-
-    async def fetch_ticker(self, sym: str, return_raw_response=True):
+    async def fetch_ticker(self, return_raw_response=True):
         async with aiohttp.ClientSession() as session:
             async with session.get("https://public.bitbank.cc/tickers") as resp:
                 resp.raise_for_status()
-                return await resp.json()
+                if return_raw_response:
+                    return await resp.json()
+                else:
+                    df = (
+                        pd.DataFrame(res["data"])
+                        .assign(
+                            timestamp=lambda x: pd.to_datetime(x.timestamp*1e6),
+                            pair=lambda x: x.pair.str.replace("_", "").str.upper(),
+                        )
+                        .set_index(["pair", "timestamp"]).astype(float)
+                    )
+                    return df
