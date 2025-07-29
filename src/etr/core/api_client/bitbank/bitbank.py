@@ -471,7 +471,7 @@ class BitbankRestClient(ExchangeClientBase):
         if dtype == "Trade":
             msg.pop("_data_type")
             trade = Trade(**msg)
-            if trade.order_id in self._order_cache:
+            if trade.order_id in self._order_cache and trade.trade_id not in self._transaction_cache:
                 oinfo = self._order_cache[trade.order_id]
                 trade.timestamp = datetime.datetime.now(datetime.timezone.utc)
                 trade.model_id = oinfo.model_id
