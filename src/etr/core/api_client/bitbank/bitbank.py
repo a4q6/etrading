@@ -133,6 +133,7 @@ class BitbankRestClient(ExchangeClientBase):
             raise RuntimeError(f"Latest stream message ({self._last_stream_msg_timestamp}) is too old. Streaming might be dead now.")
 
         # order info
+        amount = round(amount, 6)
         data = Order(
             datetime.datetime.now(datetime.timezone.utc), market_created_timestamp=pd.NaT, sym=sym,
             side=side, price=price, amount=amount, executed_amount=0, order_type=order_type, order_status=OrderStatus.New,

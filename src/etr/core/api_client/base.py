@@ -111,7 +111,7 @@ class ExchangeClientBase(ABC):
             exec_amount = (trade.amount * trade.side)
             cur_size = self.positions[sym][1]
             cur_side = np.sign(cur_size)
-            new_size = cur_size + exec_amount
+            new_size = round(cur_size + exec_amount, 6)
             if round(new_size, 7) == 0:
                 # close
                 self.closed_pnl += cur_side * (trade.price - self.positions[sym][0]) * trade.amount
