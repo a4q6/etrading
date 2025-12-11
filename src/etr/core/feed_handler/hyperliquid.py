@@ -157,12 +157,24 @@ class HyperliquidSocketClient:
                 self.logger.info(f"Wait {round(sleep_sec, 2)} seconds to reconnect...")
                 await asyncio.sleep(sleep_sec)
 
+    async def _reader_loop(self, websocket):
+        while self._connected and self._running:
+            raw_msg = await websocket.recv()
+            message = json.loads(raw_msg)
+            if "channel" not in message:
+                self.logger.info(f"{message}")
+            else:
+                await self._process_message(message)
+            self.attempts = 0
+
     async def _connect(self):
-        # start websocket connection
         async with websockets.connect(self.ws_url) as websocket:
             self._connected = True
             self._ws = websocket
             self.logger.info(f"Start subscribing: {self.ws_url}")
+
+            reader_task = asyncio.create_task(self._reader_loop(websocket))
+            hb_task = asyncio.create_task(self.heartbeat(websocket))
 
             # Send request
             for channel in self.channels:
@@ -172,22 +184,15 @@ class HyperliquidSocketClient:
                 await asyncio.sleep(0.1)
 
             try:
-                asyncio.create_task(self.heartbeat(websocket))
-                while self._connected and self._running:
-                    raw_msg = await websocket.recv()
-                    message = json.loads(raw_msg)
-                    if not "channel" in message:
-                        self.logger.info(f"{message}")
-                    else:
-                        await self._process_message(message)
-                    self.attempts = 0  # reset retry counts
-
+                await reader_task  # ここは適宜調整
             except websockets.exceptions.ConnectionClosedOK:
                 self.logger.info("Websoket closed OK")
             except Exception as e:
                 self.logger.error(f"Websocket closed ERR: {e}")
                 raise
             finally:
+                hb_task.cancel()
+                reader_task.cancel()
                 self._connected = False
                 self.logger.info("Close websocket")
 
@@ -228,7 +233,7 @@ class HyperliquidSocketClient:
             cur_msg = {
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "open_time": pd.Timestamp(data["t"] * 1e6, tz="UTC").isoformat(),
-                "close_time": pd.Timestamp(data["T"] * 1e6, tz="UTC").isoformat(),
+                "close_time": pd.Timestamp((data["T"] + 1) * 1e6, tz="UTC").isoformat(),
                 "sym": ccypair,
                 "venue": VENUE.HYPERLIQUID,
                 "category": self.pair_to_category[ccypair],
