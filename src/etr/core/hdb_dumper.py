@@ -36,6 +36,7 @@ class HdbDumper:
         "BitBankPrivateRest": ["Order", "Trade", "PositionUpdate"],  # [NOTE] legacy
         "CoincheckPrivate": ["Order", "Trade"],
         "BitBankPrivate": ["Order", "Trade", "PositionUpdate"],
+        "HyperliquidSocketClient": ["MarketTrade", "Candle"],
     }
     venue_map = {
         "BitmexSocketClient": VENUE.BITMEX,
@@ -52,6 +53,7 @@ class HdbDumper:
         "BitBankPrivateRest": VENUE.BITBANK,  # [NOTE] legacy
         "BitBankPrivate": VENUE.BITBANK,
         "CoincheckPrivate": VENUE.COINCHECK,
+        "HyperliquidSocketClient": VENUE.HYPERLIQUID,
     }
     mtp_pairs = [
         # [NOTE] Legacy MTP logic
