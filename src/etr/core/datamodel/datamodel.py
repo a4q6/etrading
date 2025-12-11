@@ -22,6 +22,7 @@ class VENUE:
     COINCHECK: str = "coincheck"
     BITBANK: str = "bitbank"
     GMO: str = "gmo"
+    HYPERLIQUID: str = "hyperliquid"
 
 
 @dataclass
