@@ -116,7 +116,7 @@ def list_hdb(
     hdb_dir = parent_dir.joinpath(Config.HDB_DIR)
 
     ymd = pd.Timestamp(date).strftime("%Y-%m-%d")
-    files = pd.Series([path.as_posix() for path in hdb_dir.glob(f"*/*/{ymd}/*/*.parquet")], name="path")  # table/venue/date/sym/file.parquet
+    files = pd.Series([path.as_posix() for path in hdb_dir.glob(f"*/*/{ymd}/*/*.parquet")], name="path", dtype="object")  # table/venue/date/sym/file.parquet
     if len(files) > 0:
         partition = files.astype(str).str.split("/")
         files_df = files.to_frame()
