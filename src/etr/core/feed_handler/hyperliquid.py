@@ -107,6 +107,24 @@ class HyperliquidSocketClient:
             self.logger.info(f"Next refresh scheduled at {next_time.strftime('%Y-%m-%d %H:%M')} (in {wait_sec:.0f} seconds)")
             await asyncio.sleep(wait_sec)
 
+    async def start_ohlc_write_loop(self):
+        while self._running:
+            # dump current ohlc cache if (is not saved even after close_time)
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            for ccypair, ohlc in self.ohlc_cache.items():
+                if ohlc["close_time"] < now and not ohlc["_emitted"]:
+                    ohlc["_emitted"] = True
+                    data = deepcopy(ohlc)
+                    data.pop("_emitted")
+                    data["timestamp"] = now
+                    if self.publisher is not None: asyncio.create_task(self.publisher.send(data))
+                    asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(data))) # store
+            # wait until next loop
+            now = datetime.datetime.now(datetime.timezone.utc)
+            next_time = pd.Timestamp(now).ceil("1min")
+            wait_sec = (next_time - now).total_seconds()
+            await asyncio.sleep(wait_sec)
+
     async def initialize_attributes(self):
 
         # retrieve symbol master
@@ -140,7 +158,7 @@ class HyperliquidSocketClient:
             self.ticker_plant[ccy_pair] = AsyncBufferedLogger(logger_name=f"TP-{self.__class__.__name__}-{ccy_pair.upper().replace('_', '')}", log_dir=tp_dir.as_posix())
 
     async def start(self):
-        # asyncio.create_task(self.start_symbol_refresh_loop())
+        asyncio.create_task(self.start_ohlc_write_loop())
         await self.initialize_attributes()
 
         self.attempts = 0
@@ -244,14 +262,19 @@ class HyperliquidSocketClient:
                 "volume": float(data["v"]),
                 "counts": int(data["n"]),
                 "_data_type": "Candle",
+                "_emitted": False,
             }
             prev = self.ohlc_cache.get(ccypair)
             if prev is None:
-                pass
+                self.ohlc_cache[ccypair] = cur_msg
             elif prev["open_time"] < cur_msg["open_time"]:
-                if self.publisher is not None: asyncio.create_task(self.publisher.send(prev))
-                asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(prev))) # store
-            self.ohlc_cache[ccypair] = cur_msg
+                if not prev["_emitted"]:
+                    # save previous ohlc as close OHLC
+                    prev.pop("_emitted")
+                    prev["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    if self.publisher is not None: asyncio.create_task(self.publisher.send(prev))
+                    asyncio.create_task(self.ticker_plant[ccypair].info(json.dumps(prev))) # store
+                self.ohlc_cache[ccypair] = cur_msg
 
         elif message.get("channel") == 'subscriptionResponse':
             self.logger.info(f"{message}")
@@ -269,7 +292,7 @@ class HyperliquidSocketClient:
 
 
 if __name__ == '__main__':
-    client = HyperliquidSocketClient(ccy_pairs=["HYPE"], limit_candle_symbols=True)
+    client = HyperliquidSocketClient(ccy_pairs=["BTC"], limit_candle_symbols=True)
     try:
         asyncio.run(client.start())
     except KeyboardInterrupt:
