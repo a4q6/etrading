@@ -32,7 +32,13 @@ def _calc_impact_price(array, target_amount=5e-3, use_term=False, force_return=F
     if (not fill_target_amount) and (not force_return):
         return np.nan
 
-    return np.average(prices[:idx], weights=weights[:idx])
+    w = weights[:idx]
+    p = prices[:idx]
+    wsum = np.sum(w)
+    if wsum <= 0.0:
+        return np.nan  # 板はあるけど実質的な「量」がゼロのケース
+
+    return np.sum(p * w) / wsum   # VWAP
 
 
 def calc_impact_price(
