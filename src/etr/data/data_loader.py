@@ -4,6 +4,7 @@ from glob import glob
 from tqdm import tqdm
 from typing import Union, List
 import json
+import logging
 
 from etr.config import Config
 from etr.common.logger import LoggerFactory
@@ -49,7 +50,8 @@ def load_data(
     table: str = "MarketTrade",
     venue: str = "*",
     symbol: str = "BTCJPY",
-    parent_dir: Path = None
+    parent_dir: Path = None,
+    log_output: bool = True,
 ):
     assert table != "*", "wildcard specification for table name is not supported."
 
@@ -60,6 +62,11 @@ def load_data(
         parent_dir = Path(parent_dir)
     hdb_dir = parent_dir.joinpath(Config.HDB_DIR)
     tp_dir = parent_dir.joinpath(Config.TP_DIR)
+
+    if log_output:
+        logger.setLevel(logging.INFO)
+    else:
+        logger.setLevel(logging.CRITICAL)
 
     # search files
     if isinstance(date, list) and len(date) == 2:
