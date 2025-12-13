@@ -31,11 +31,9 @@ class HdbDumper:
         "BitFlyerFundingRate": ["FundingRate"],
         "BinanceSocketClient": ["Rate", "MarketTrade"],
         "BinanceRestEoption": ["ImpliedVolatility"],
-        "CoincheckRestClient": ["Order", "Trade"],  # [NOTE] legacy
-        "BitBankPrivateStream": ["Order", "Trade", "PositionUpdate"],  # [NOTE] legacy
-        "BitBankPrivateRest": ["Order", "Trade", "PositionUpdate"],  # [NOTE] legacy
         "CoincheckPrivate": ["Order", "Trade"],
         "BitBankPrivate": ["Order", "Trade", "PositionUpdate"],
+        "HyperliquidSocketClient": ["MarketTrade", "Candle"],
     }
     venue_map = {
         "BitmexSocketClient": VENUE.BITMEX,
@@ -47,16 +45,10 @@ class HdbDumper:
         "BitFlyerFundingRate": VENUE.BITFLYER,
         "BinanceSocketClient": VENUE.BINANCE,
         "BinanceRestEoption": VENUE.BINANCE,
-        "CoincheckRestClient": VENUE.COINCHECK,  # [NOTE] legacy
-        "BitBankPrivateStream": VENUE.BITBANK,  # [NOTE] legacy
-        "BitBankPrivateRest": VENUE.BITBANK,  # [NOTE] legacy
         "BitBankPrivate": VENUE.BITBANK,
         "CoincheckPrivate": VENUE.COINCHECK,
+        "HyperliquidSocketClient": VENUE.HYPERLIQUID,
     }
-    mtp_pairs = [
-        # [NOTE] Legacy MTP logic
-        ("BitBankPrivateStream", "BitBankPrivateRest"),
-    ]
     mtp_list = [
         "BitBankPrivate",
         "CoincheckPrivate",
@@ -68,20 +60,11 @@ class HdbDumper:
         self.logger = LoggerFactory().get_logger(logger_name=self.__class__.__name__, log_file=Path(Config.LOG_DIR).joinpath("hdb_dumper.log"))
         self.process: Optional[Process] = None
 
-        # validate MTP config
-        for tp_names in self.mtp_pairs:
-            # assert have same table list
-            table_sets = [set(self.table_list[tp_name]) for tp_name in tp_names]
-            assert all(table_sets[0] == sets for sets in table_sets), f"Non-unique table list detected for {tp_names}"
-            # assert same venue
-            assert len(set(self.venue_map[tp_name] for tp_name in tp_names)) == 1, f"Non-unique venue mapping detected for {tp_names}"
-
     def dump_to_hdb(self, log_file: Path, skip_if_exists: bool = True) -> None:
 
         self.logger.info(f"Start extraction for '{Path(log_file).name}'")
         logger_name = Path(log_file).name.split("-")[1]
         raw_logger_name = re.sub(r'\d+', '', logger_name)
-        print(raw_logger_name)
         date = Path(log_file).name.split(".")[-1]
         sym_from_fname = Path(log_file).name.split("-")[2].split(".log")[0].replace("_", "").upper()
 
@@ -97,17 +80,9 @@ class HdbDumper:
             return
 
         # Proceed to extraction
-        # check if MTP or not [NOTE] legacy MTP logic
-        linked_tps = None
-        for mtp_pair in self.mtp_pairs:
-            if logger_name in mtp_pair:
-                linked_tps = mtp_pair
-                self.logger.info(f"Found multi TP file: {linked_tps}")
-                break
-
         # read log file
         if raw_logger_name in self.mtp_list:
-            # [NOTE] New MTP logic
+            # Multi-TP logic
             records = self.read_tp_file(log_file)
             for i in range(10):
                 candidate = Path(log_file).as_posix().replace(logger_name, f"{raw_logger_name}{i}")
@@ -116,21 +91,9 @@ class HdbDumper:
                     add_records = self.read_tp_file(candidate)
                     for k, rec in add_records.items():
                         records[k] += rec
-        elif linked_tps is None:
-            # Single TP
-            records = self.read_tp_file(log_file)
         else:
-            # [NOTE] legacy MTP logic
-            # Multi TP
+            # Single TP logic
             records = self.read_tp_file(log_file)
-            for tp_name in linked_tps:
-                if tp_name == logger_name:
-                    continue
-                add_log_file = Path(log_file).as_posix().replace(logger_name, tp_name)
-                if Path(add_log_file).exists():
-                    add_records = self.read_tp_file(add_log_file)
-                    for k, rec in add_records.items():
-                        records[k] += rec
 
         # select out table records and dump
         for table, lines in records.items():
@@ -162,7 +125,7 @@ class HdbDumper:
 
     def list_log_files(self) -> pd.DataFrame:
         # DataFrame[path, fname, logger_name, date]
-        files = pd.Series(glob(f"{self.tp_dir}/*.log.*")).to_frame("path")
+        files = pd.Series(glob(f"{self.tp_dir}/*.log.*"), dtype="object").to_frame("path")
         if len(files) > 0:
             files["fname"] = files.path.str.split("/").str[-1]
             files["logger_name"] = files.fname.str.split("-").str[1]
@@ -177,11 +140,14 @@ class HdbDumper:
         for file in files:
             # read timestamp
             with open(file, "r", encoding="utf-8") as f:
+                timestamp = None
                 for i, line in enumerate(f):
                     if len(line) > 10:
                         timestamp = pd.Timestamp(line.split("||", 1)[0])
                         break
-            if timestamp.date() < today.date():
+            if timestamp is None:
+                pass
+            elif timestamp.date() < today.date():
                 fname = str(file) + timestamp.strftime(".%Y-%m-%d")
                 shutil.move(file, fname)
                 self.logger.info(f"Renamed '{file}' => '{fname}'")
