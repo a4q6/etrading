@@ -67,11 +67,16 @@ if __name__ == "__main__":
 
         # search sym list
         ymd = date.strftime("%Y-%m-%d")
-        sym_list = pd.DataFrame(
-            pd.Series(glob(f"{Config.HDB_DIR}/MarketBook/*/{ymd}/*")).str.split("MarketBook/").str[-1].str.split("/").values.tolist(),
-            columns=["venue", "date", "sym"],
-        ).drop("date", axis=1).drop_duplicates()
-        print(f"({ymd}) Found {len(sym_list)} files")
+        files = glob(f"{Config.HDB_DIR}/MarketBook/*/{ymd}/*")
+        if len(files) > 0:
+            print(f"({ymd}) Found {len(files)} files")
+            sym_list = pd.DataFrame(
+                pd.Series(files).str.split("MarketBook/").str[-1].str.split("/").values.tolist(),
+                columns=["venue", "date", "sym"],
+            ).drop("date", axis=1).drop_duplicates()
+        else:
+            print(f"({ymd}) No source MarketBook files found")
+            return
 
         # run
         for venue, sym in sym_list[["venue", "sym"]].values:
