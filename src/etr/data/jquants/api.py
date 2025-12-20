@@ -28,6 +28,7 @@ def get_refresh_token(mailaddress: str, password: str) -> str:
     refresh_token = data["refreshToken"]
     return refresh_token
 
+
 def get_id_token(refresh_token: str) -> str:
     """
     /token/auth_refresh でIDトークンを取得
@@ -42,8 +43,10 @@ def get_id_token(refresh_token: str) -> str:
     id_token = data["idToken"]
     return id_token
 
+
 def auth_headers(id_token: str) -> pd.DataFrame:
     return {"Authorization": f"Bearer {id_token}"}
+
 
 def get_listed_info(id_token: str, code: Optional[str] = None, date: Optional[str] = None):
     """
@@ -125,6 +128,7 @@ def get_price_daily_quotes(
     res = data.get("daily_prices", data.get("prices", data))
     return pd.DataFrame(res["daily_quotes"])
 
+
 def get_fins_statements(
     id_token: str,
     code: Optional[str] = None,
@@ -148,7 +152,6 @@ def get_fins_statements(
     data = resp.json()
     # 公式サンプルでは top-level key は "statements" :contentReference[oaicite:0]{index=0}
     res = pd.DataFrame(data.get("statements", []))
-
     str_cols = [
         'DisclosedDate',
         'DisclosedTime',
@@ -166,11 +169,13 @@ def get_fins_statements(
         'ChangesBasedOnRevisionsOfAccountingStandard',
         'ChangesOtherThanOnesBasedOnRevisionsOfAccountingStandard',
         'ChangesInAccountingEstimates',
-        'RetrospectiveRestatement'
+        'RetrospectiveRestatement',
+        "MaterialChangesInSubsidiaries",
     ]
-    num_cols = [col for col in res.columns if not col in str_cols]
-    res = res.rename(lambda x: x.replace("(", "").replace(")", ""), axis=1)
+    num_cols = [col for col in res.columns if col not in str_cols]
     res[num_cols] = res[num_cols].replace("", np.nan).astype(float)
+    res = res.rename(lambda x: x.replace("(", "").replace(")", ""), axis=1)
+    return res
 
 
 def get_fins_announcement(id_token: str) -> pd.DataFrame:
@@ -214,7 +219,7 @@ def get_markets_trading_calendar(
     if date_to is not None:
         params["to"] = date_to
 
-    mapper = {   
+    mapper = {
         0: "非営業日",
         1: "営業日",
         2: "東証半日立会日",

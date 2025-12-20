@@ -1,12 +1,9 @@
-PRAGMA journal_mode = WAL;
+PRAGMA journal_mode = DELTE;
 PRAGMA page_size = 4096;   -- VACUUM を後で必ず実行
 PRAGMA foreign_keys = ON;
 VACUUM;
 
--- [FREE]
--- ==============
 -- /listed/info
--- ==============
 CREATE TABLE IF NOT EXISTS listed_info (
   Date TEXT NOT NULL,  -- YYYY-MM-DD
   Code TEXT NOT NULL,
@@ -23,9 +20,16 @@ CREATE TABLE IF NOT EXISTS listed_info (
   PRIMARY KEY (Date, Code)
 );
 
--- =====================
+CREATE TABLE IF NOT EXISTS indices_info (
+  Code TEXT NOT NULL,
+  IndexName TEXT NOT NULL,
+  Sector17CodeName TEXT,
+  Sector33CodeName TEXT,
+  ingested_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (Code, IndexName)
+);
+
 -- /prices/daily_quotes
--- =====================
 CREATE TABLE IF NOT EXISTS prices_daily_quotes (
   Date TEXT NOT NULL,
   Code TEXT NOT NULL,
@@ -74,9 +78,7 @@ CREATE TABLE IF NOT EXISTS prices_daily_quotes (
   PRIMARY KEY (Date, Code)
 );
 
--- =============================
 -- /markets/trading_calendar
--- =============================
 CREATE TABLE IF NOT EXISTS markets_trading_calendar (
   Date TEXT NOT NULL,
   HolidayDivision TEXT NOT NULL,
@@ -84,124 +86,120 @@ CREATE TABLE IF NOT EXISTS markets_trading_calendar (
   PRIMARY KEY (Date, HolidayDivision)
 );
 
--- ====================
 -- /fins/statements
--- 列数が膨大なので raw JSON
--- ====================
 CREATE TABLE IF NOT EXISTS fins_statements (
   DisclosedDate TEXT NOT NULL,
   DisclosedTime TEXT,
   LocalCode TEXT NOT NULL,
   DisclosureNumber TEXT NOT NULL,
   TypeOfDocument TEXT,
+  TypeOfCurrentPeriod TEXT,
   CurrentPeriodStartDate TEXT,
   CurrentPeriodEndDate TEXT,
   CurrentFiscalYearStartDate TEXT,
   CurrentFiscalYearEndDate TEXT,
   NextFiscalYearStartDate TEXT,
   NextFiscalYearEndDate TEXT,
-  NetSales TEXT,
-  OperatingProfit TEXT,
-  OrdinaryProfit TEXT,
-  Profit TEXT,
-  EarningsPerShare TEXT,
-  DilutedEarningsPerShare TEXT,
-  TotalAssets TEXT,
-  Equity TEXT,
-  EquityToAssetRatio TEXT,
-  BookValuePerShare TEXT,
-  CashFlowsFromOperatingActivities TEXT,
-  CashFlowsFromInvestingActivities TEXT,
-  CashFlowsFromFinancingActivities TEXT,
-  CashAndEquivalents TEXT,
-  ResultDividendPerShare1stQuarter TEXT,
-  ResultDividendPerShare2ndQuarter TEXT,
-  ResultDividendPerShare3rdQuarter TEXT,
-  ResultDividendPerShareFiscalYearEnd TEXT,
-  ResultDividendPerShareAnnual TEXT,
-  DistributionsPerUnit_REIT TEXT,
-  ResultTotalDividendPaidAnnual TEXT,
-  ResultPayoutRatioAnnual TEXT,
-  ForecastDividendPerShare1stQuarter TEXT,
-  ForecastDividendPerShare2ndQuarter TEXT,
-  ForecastDividendPerShare3rdQuarter TEXT,
-  ForecastDividendPerShareFiscalYearEnd TEXT,
-  ForecastDividendPerShareAnnual TEXT,
-  ForecastDistributionsPerUnit_REIT TEXT,
-  ForecastTotalDividendPaidAnnual TEXT,
-  ForecastPayoutRatioAnnual TEXT,
-  NextYearForecastDividendPerShare1stQuarter TEXT,
-  NextYearForecastDividendPerShare2ndQuarter TEXT,
-  NextYearForecastDividendPerShare3rdQuarter TEXT,
-  NextYearForecastDividendPerShareFiscalYearEnd TEXT,
-  NextYearForecastDividendPerShareAnnual TEXT,
-  NextYearForecastDistributionsPerUnit_REIT TEXT,
-  NextYearForecastPayoutRatioAnnual TEXT,
-  ForecastNetSales2ndQuarter TEXT,
-  ForecastOperatingProfit2ndQuarter TEXT,
-  ForecastOrdinaryProfit2ndQuarter TEXT,
-  ForecastProfit2ndQuarter TEXT,
-  ForecastEarningsPerShare2ndQuarter TEXT,
-  NextYearForecastNetSales2ndQuarter TEXT,
-  NextYearForecastOperatingProfit2ndQuarter TEXT,
-  NextYearForecastOrdinaryProfit2ndQuarter TEXT,
-  NextYearForecastProfit2ndQuarter TEXT,
-  NextYearForecastEarningsPerShare2ndQuarter TEXT,
-  ForecastNetSales TEXT,
-  ForecastOperatingProfit TEXT,
-  ForecastOrdinaryProfit TEXT,
-  ForecastProfit TEXT,
-  ForecastEarningsPerShare TEXT,
-  NextYearForecastNetSales TEXT,
-  NextYearForecastOperatingProfit TEXT,
-  NextYearForecastOrdinaryProfit TEXT,
-  NextYearForecastProfit TEXT,
-  NextYearForecastEarningsPerShare TEXT,
+  NetSales REAL,
+  OperatingProfit REAL,
+  OrdinaryProfit REAL,
+  Profit REAL,
+  EarningsPerShare REAL,
+  DilutedEarningsPerShare REAL,
+  TotalAssets REAL,
+  Equity REAL,
+  EquityToAssetRatio REAL,
+  BookValuePerShare REAL,
+  CashFlowsFromOperatingActivities REAL,
+  CashFlowsFromInvestingActivities REAL,
+  CashFlowsFromFinancingActivities REAL,
+  CashAndEquivalents REAL,
+  ResultDividendPerShare1stQuarter REAL,
+  ResultDividendPerShare2ndQuarter REAL,
+  ResultDividendPerShare3rdQuarter REAL,
+  ResultDividendPerShareFiscalYearEnd REAL,
+  ResultDividendPerShareAnnual REAL,
+  DistributionsPerUnitREIT REAL,
+  ResultTotalDividendPaidAnnual REAL,
+  ResultPayoutRatioAnnual REAL,
+  ForecastDividendPerShare1stQuarter REAL,
+  ForecastDividendPerShare2ndQuarter REAL,
+  ForecastDividendPerShare3rdQuarter REAL,
+  ForecastDividendPerShareFiscalYearEnd REAL,
+  ForecastDividendPerShareAnnual REAL,
+  ForecastDistributionsPerUnitREIT REAL,
+  ForecastTotalDividendPaidAnnual REAL,
+  ForecastPayoutRatioAnnual REAL,
+  NextYearForecastDividendPerShare1stQuarter REAL,
+  NextYearForecastDividendPerShare2ndQuarter REAL,
+  NextYearForecastDividendPerShare3rdQuarter REAL,
+  NextYearForecastDividendPerShareFiscalYearEnd REAL,
+  NextYearForecastDividendPerShareAnnual REAL,
+  NextYearForecastDistributionsPerUnitREIT REAL,
+  NextYearForecastPayoutRatioAnnual REAL,
+  ForecastNetSales2ndQuarter REAL,
+  ForecastOperatingProfit2ndQuarter REAL,
+  ForecastOrdinaryProfit2ndQuarter REAL,
+  ForecastProfit2ndQuarter REAL,
+  ForecastEarningsPerShare2ndQuarter REAL,
+  NextYearForecastNetSales2ndQuarter REAL,
+  NextYearForecastOperatingProfit2ndQuarter REAL,
+  NextYearForecastOrdinaryProfit2ndQuarter REAL,
+  NextYearForecastProfit2ndQuarter REAL,
+  NextYearForecastEarningsPerShare2ndQuarter REAL,
+  ForecastNetSales REAL,
+  ForecastOperatingProfit REAL,
+  ForecastOrdinaryProfit REAL,
+  ForecastProfit REAL,
+  ForecastEarningsPerShare REAL,
+  NextYearForecastNetSales REAL,
+  NextYearForecastOperatingProfit REAL,
+  NextYearForecastOrdinaryProfit REAL,
+  NextYearForecastProfit REAL,
+  NextYearForecastEarningsPerShare REAL,
   MaterialChangesInSubsidiaries TEXT,
   SignificantChangesInTheScopeOfConsolidation TEXT,
   ChangesBasedOnRevisionsOfAccountingStandard TEXT,
   ChangesOtherThanOnesBasedOnRevisionsOfAccountingStandard TEXT,
   ChangesInAccountingEstimates TEXT,
   RetrospectiveRestatement TEXT,
-  NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYearIncludingTreasuryStock TEXT,
-  NumberOfTreasuryStockAtTheEndOfFiscalYear TEXT,
-  AverageNumberOfShares TEXT,
-  NonConsolidatedNetSales TEXT,
-  NonConsolidatedOperatingProfit TEXT,
-  NonConsolidatedOrdinaryProfit TEXT,
-  NonConsolidatedProfit TEXT,
-  NonConsolidatedEarningsPerShare TEXT,
-  NonConsolidatedTotalAssets TEXT,
-  NonConsolidatedEquity TEXT,
-  NonConsolidatedEquityToAssetRatio TEXT,
-  NonConsolidatedBookValuePerShare TEXT,
-  ForecastNonConsolidatedNetSales2ndQuarter TEXT,
-  ForecastNonConsolidatedOperatingProfit2ndQuarter TEXT,
-  ForecastNonConsolidatedOrdinaryProfit2ndQuarter TEXT,
-  ForecastNonConsolidatedProfit2ndQuarter TEXT,
-  ForecastNonConsolidatedEarningsPerShare2ndQuarter TEXT,
-  NextYearForecastNonConsolidatedNetSales2ndQuarter TEXT,
-  NextYearForecastNonConsolidatedOperatingProfit2ndQuarter TEXT,
-  NextYearForecastNonConsolidatedOrdinaryProfit2ndQuarter TEXT,
-  NextYearForecastNonConsolidatedProfit2ndQuarter TEXT,
-  NextYearForecastNonConsolidatedEarningsPerShare2ndQuarter TEXT,
-  ForecastNonConsolidatedNetSales TEXT,
-  ForecastNonConsolidatedOperatingProfit TEXT,
-  ForecastNonConsolidatedOrdinaryProfit TEXT,
-  ForecastNonConsolidatedProfit TEXT,
-  ForecastNonConsolidatedEarningsPerShare TEXT,
-  NextYearForecastNonConsolidatedNetSales TEXT,
-  NextYearForecastNonConsolidatedOperatingProfit TEXT,
-  NextYearForecastNonConsolidatedOrdinaryProfit TEXT,
-  NextYearForecastNonConsolidatedProfit TEXT,
-  NextYearForecastNonConsolidatedEarningsPerShare TEXT,
+  NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYearIncludingTreasuryStock REAL,
+  NumberOfTreasuryStockAtTheEndOfFiscalYear REAL,
+  AverageNumberOfShares REAL,
+  NonConsolidatedNetSales REAL,
+  NonConsolidatedOperatingProfit REAL,
+  NonConsolidatedOrdinaryProfit REAL,
+  NonConsolidatedProfit REAL,
+  NonConsolidatedEarningsPerShare REAL,
+  NonConsolidatedTotalAssets REAL,
+  NonConsolidatedEquity REAL,
+  NonConsolidatedEquityToAssetRatio REAL,
+  NonConsolidatedBookValuePerShare REAL,
+  ForecastNonConsolidatedNetSales2ndQuarter REAL,
+  ForecastNonConsolidatedOperatingProfit2ndQuarter REAL,
+  ForecastNonConsolidatedOrdinaryProfit2ndQuarter REAL,
+  ForecastNonConsolidatedProfit2ndQuarter REAL,
+  ForecastNonConsolidatedEarningsPerShare2ndQuarter REAL,
+  NextYearForecastNonConsolidatedNetSales2ndQuarter REAL,
+  NextYearForecastNonConsolidatedOperatingProfit2ndQuarter REAL,
+  NextYearForecastNonConsolidatedOrdinaryProfit2ndQuarter REAL,
+  NextYearForecastNonConsolidatedProfit2ndQuarter REAL,
+  NextYearForecastNonConsolidatedEarningsPerShare2ndQuarter REAL,
+  ForecastNonConsolidatedNetSales REAL,
+  ForecastNonConsolidatedOperatingProfit REAL,
+  ForecastNonConsolidatedOrdinaryProfit REAL,
+  ForecastNonConsolidatedProfit REAL,
+  ForecastNonConsolidatedEarningsPerShare REAL,
+  NextYearForecastNonConsolidatedNetSales REAL,
+  NextYearForecastNonConsolidatedOperatingProfit REAL,
+  NextYearForecastNonConsolidatedOrdinaryProfit REAL,
+  NextYearForecastNonConsolidatedProfit REAL,
+  NextYearForecastNonConsolidatedEarningsPerShare REAL,
   ingested_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (DisclosedDate, LocalCode, DisclosureNumber)
 );
 
--- ====================
 -- /fins/announcement
--- ====================
 CREATE TABLE IF NOT EXISTS fins_announcement (
   Date TEXT NOT NULL,
   Code TEXT NOT NULL,
@@ -226,9 +224,7 @@ CREATE TABLE IF NOT EXISTS indices (
   PRIMARY KEY (Date, Code)
 );
 
--- =============================
--- /option/index_option 日経225オプション四本値
--- =============================
+-- /option/index_option
 CREATE TABLE IF NOT EXISTS index_option (
   Date TEXT NOT NULL,              -- YYYY-MM-DD
   Code TEXT NOT NULL,              -- 銘柄コード（5桁）
@@ -264,9 +260,7 @@ CREATE TABLE IF NOT EXISTS index_option (
   PRIMARY KEY (Date, Code, EmergencyMarginTriggerDivision)
 );
 
--- ================================
 -- /markets/weekly_margin_interest 信用取引週末残高
--- ================================
 CREATE TABLE IF NOT EXISTS markets_weekly_margin_interest (
   Date TEXT NOT NULL,   -- YYYY-MM-DD（申込日付＝基準日）
   Code TEXT NOT NULL,
@@ -281,9 +275,7 @@ CREATE TABLE IF NOT EXISTS markets_weekly_margin_interest (
   PRIMARY KEY (Date, Code)
 );
 
--- ================================
 -- /markets/short_selling 業種別空売り比率
--- ================================
 CREATE TABLE IF NOT EXISTS markets_short_selling (
   Date TEXT NOT NULL,          -- YYYY-MM-DD
   Sector33Code TEXT NOT NULL,  -- 33業種コード
@@ -294,9 +286,7 @@ CREATE TABLE IF NOT EXISTS markets_short_selling (
   PRIMARY KEY (Date, Sector33Code)
 );
 
--- ==================================
 -- /markets/short_selling_positions 空売り残高報告
--- ==================================
 CREATE TABLE IF NOT EXISTS markets_short_selling_positions (
   DisclosedDate TEXT NOT NULL,      -- 公表日 YYYY-MM-DD
   CalculatedDate TEXT NOT NULL,     -- 計算日 YYYY-MM-DD
@@ -317,9 +307,7 @@ CREATE TABLE IF NOT EXISTS markets_short_selling_positions (
   PRIMARY KEY (DisclosedDate, Code, ShortSellerName, CalculatedDate)
 );
 
--- =================================
 -- /markets/daily_margin_interest 日々公表信用取引残高
--- =================================
 CREATE TABLE IF NOT EXISTS markets_daily_margin_interest (
   PublishedDate TEXT NOT NULL,   -- 公表日 YYYY-MM-DD
   Code TEXT NOT NULL,
@@ -348,3 +336,73 @@ CREATE TABLE IF NOT EXISTS markets_daily_margin_interest (
   ingested_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (PublishedDate, Code, ApplicationDate)
 );
+
+
+-- ======
+-- [VIEW]
+-- ======
+CREATE VIEW IF NOT EXISTS DailyOHLCV AS 
+  Select
+      spt.Date,
+      'spot' as Source,
+      lst.ScaleCategory,
+      lst.MarketCodeName,
+      lst.Sector17CodeName,
+      lst.Sector33CodeName,
+      spt.Code,
+      lst.CompanyName as Name,
+      spt.AdjustmentOpen As Open,
+      spt.AdjustmentHigh As High,
+      spt.AdjustmentLow As Low,
+      spt.AdjustmentClose As Close,
+      spt.AdjustmentVolume As Volume,
+      spt.TurnoverValue,
+      spt.UpperLimit,
+      spt.LowerLimit
+  From prices_daily_quotes spt
+  Left Join listed_info lst On spt.Date=lst.Date and spt.Code = lst.Code
+
+  Union All
+
+  Select
+      idx.Date,
+      'index' as Source,
+      NULL as ScaleCategory,
+      NULL as MarketCodeName,
+      lst.Sector17CodeName,
+      lst.Sector33CodeName,
+      idx.Code,
+      lst.IndexName as Name,
+      idx.Open,
+      idx.High,
+      idx.Low,
+      idx.Close,
+      NULL as Volume,
+      NULL as TurnoverValue,
+      NULL as UpperLimit,
+      NULL as LowerLimit
+  From indices idx
+  Left Join indices_info lst On idx.Code = lst.Code
+
+  Union All
+
+  Select 
+      opt.Date,
+      'index_opt' as Source,
+      opt.PutCallDivision as ScaleCategory,
+      opt.SpecialQuotationDay as MarketCodeName,
+      opt.UnderlyingPrice as Sector17CodeName,
+      opt.StrikePrice as Sector33CodeName,
+      opt.Code,
+      '日経225オプション' as Name,
+      WholeDayOpen As Open,
+      WholeDayHigh As High,
+      WholeDayLow As Low,
+      WholeDayClose As Close,
+      opt.Volume,
+      opt.TurnoverValue,
+      opt.BaseVolatility as UpperLimit,
+      opt.ImpliedVolatility as LowerLimit
+  From index_option opt
+  Left Join listed_info lst On opt.Code = lst.Code and opt.Date = lst.Date
+  

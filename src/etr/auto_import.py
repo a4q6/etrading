@@ -16,6 +16,12 @@ from statsmodels.api import OLS
 from IPython.display import HTML
 from pathlib import Path
 from tqdm.auto import tqdm
+from IPython import get_ipython
+
+ip = get_ipython()
+if ip is not None:
+    ip.run_line_magic("load_ext", "autoreload")
+    ip.run_line_magic("autoreload", "2")
 
 pd.set_option("display.max_columns", None)
 

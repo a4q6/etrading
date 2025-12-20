@@ -2,21 +2,51 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3
 import pandas as pd
+from typing import Optional
 
 from etr.config import Config
+
+
+def _path_handler(db_path: str) -> Path:
+    # 絶対パスならそれを返す, 相対パスならlibrary top levelからを返す
+    if Path(db_path).as_posix().startswith("/"):
+        return Path(db_path)
+    else:
+        cd = Path(__file__).parent
+        base_path = cd.parent.parent.parent.parent
+        return base_path.joinpath(db_path)
 
 
 def apply_schema(db_path=Config.JQUANTS_DB):
     cd = Path(__file__).parent
     sql = cd.joinpath("jquants_ddl.sql").read_text(encoding="utf-8")
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
+    path = _path_handler(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(path) as conn:
         conn.executescript(sql)
         conn.commit()
 
 
+def get(
+    query: str,
+    db_path: Optional[str] = Config.JQUANTS_DB
+) -> pd.DataFrame:
+    path = _path_handler(db_path)
+    with sqlite3.connect(path) as conn:
+        return pd.read_sql(query, con=conn)
+
+
+def run(
+    query: str,
+    db_path: Optional[str] = Config.JQUANTS_DB
+):
+    path = _path_handler(db_path)
+    with sqlite3.connect(path) as conn:
+        return conn.execute(query)
+
+
 def upsert(
-    df: pd.DataFrame, 
+    df: pd.DataFrame,
     table: str,
     db_path: str = Config.JQUANTS_DB
 ) -> None:
@@ -28,7 +58,7 @@ def upsert(
     - UPSERT using ON CONFLICT(primary_key...)
     """
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(_path_handler(db_path=db_path)) as conn:
         # Pragmas (optional but usually good for ETL-ish usage)
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
@@ -62,7 +92,7 @@ def upsert(
         updates_exprs = [f"{c}=excluded.{c}" for c in cols if c not in pk]
         if "ingested_at" in all_cols:
             updates_exprs.append("ingested_at = datetime('now')")
-        updates = ",".join(updates_exprs)        
+        updates = ",".join(updates_exprs)
         sql = f"""
         INSERT INTO {table} ({",".join(cols)})
         VALUES ({placeholders})
