@@ -19,12 +19,14 @@ def _path_handler(db_path: str) -> Path:
 
 def apply_schema(db_path=Config.JQUANTS_DB):
     cd = Path(__file__).parent
-    sql = cd.joinpath("jquants_ddl.sql").read_text(encoding="utf-8")
+    ddl_files = cd.glob("ddl/jquants_v2_ddl*.sql")
     path = _path_handler(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path) as conn:
-        conn.executescript(sql)
-        conn.commit()
+        for file in ddl_files:
+            ddl = file.read_text(encoding="utf-8")
+            conn.executescript(ddl)
+            conn.commit()
 
 
 def get(

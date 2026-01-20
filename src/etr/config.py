@@ -21,3 +21,4 @@ class Config:
     JQUANTS_ID = os.getenv("JQUANTS_ID")
     JQUANTS_PW = os.getenv("JQUANTS_PW")
     JQUANTS_DB = os.getenv("JQUANTS_DB")
+    JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY")

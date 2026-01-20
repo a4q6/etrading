@@ -1,4 +1,4 @@
-PRAGMA journal_mode = DELTE;
+PRAGMA journal_mode = DELETE;
 PRAGMA page_size = 4096;   -- VACUUM を後で必ず実行
 PRAGMA foreign_keys = ON;
 VACUUM;
