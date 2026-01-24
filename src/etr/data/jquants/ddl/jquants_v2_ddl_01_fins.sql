@@ -84,7 +84,7 @@
 --  AND fs.DocType LIKE '%FinancialStatements%';
 
 -- バックテスト用：日次 as-of 指標（実績のみ）
-DROP VIEW IF EXISTS v_fundamentals_asof_daily;
+-- DROP VIEW IF EXISTS v_fundamentals_asof_daily;
 -- CREATE VIEW v_fundamentals_asof_daily AS
 -- SELECT
 --   d.Date,

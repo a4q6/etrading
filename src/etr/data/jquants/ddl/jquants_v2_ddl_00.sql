@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS equities_bars_minute (
   Vo REAL,
   Va REAL,
   ingested_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (Date, Code)
+  PRIMARY KEY (Date, Code, Time)
 );
 
 CREATE TABLE IF NOT EXISTS equities_trades (
