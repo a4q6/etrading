@@ -1,6 +1,7 @@
 *.DS_Store
 *log*
 *.parquet
+*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
