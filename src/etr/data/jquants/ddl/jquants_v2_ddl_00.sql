@@ -56,19 +56,6 @@ CREATE TABLE IF NOT EXISTS equities_bars_minute (
   PRIMARY KEY (Date, Code, Time)
 );
 
-CREATE TABLE IF NOT EXISTS equities_trades (
-  Date TEXT NOT NULL,
-  Code TEXT NOT NULL,
-  Time TEXT NOT NULL,
-  SessionDistinction TEXT,
-  Price REAL,
-  TradingVolume REAL,
-  TransactionId TEXT NOT NULL,
-
-  ingested_at TEXT DEFAULT (datetime('now')),
-  PRIMARY KEY (Date, Code, TransactionId)
-);
-
 CREATE TABLE IF NOT EXISTS equities_earnings_calendar  (
   Date TEXT NOT NULL,
   Code TEXT NOT NULL,
