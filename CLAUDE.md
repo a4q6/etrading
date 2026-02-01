@@ -26,13 +26,6 @@ python scripts/run_dev_mm_v1.py
 python scripts/hdb_loop.py
 ```
 
-*Add this command for all analysis notebooks.
-```python
-from etr.auto_import import *
-HTML(full_width_display)
-```
-
-
 ## Architecture
 
 ### Data Flow
@@ -82,6 +75,7 @@ await subscriber.subscribe([
 - **TP logs**: `data/tp/TP-{HandlerClass}-{Symbol}.log` (JSON lines with `timestamp||{json}` format)
 - **HDB**: `data/hdb/{table}/{venue}/{YYYY-MM-DD}/{symbol}/*.parquet`
 - Load data via `etr.data.data_loader.load_data(date, table, venue, symbol)`
+- Load JQuants Database via `etr.data.jquants.sqlite.get(query)`. You can see DDL under `etr.data.jquants.ddl`.
 
 ### Supported Exchanges
 
@@ -94,3 +88,36 @@ Environment variables in `.env`:
 - `{EXCHANGE}_API_KEY`, `{EXCHANGE}_API_SECRET`: Exchange credentials
 - `DISCORD_URL_*`: Notification webhooks
 - `JQUANTS_*`: J-Quants API for Japanese equities
+
+## Instructions
+* 現状の作業の状態は適宜`CLAUDE_LOG.md`に書き込みしてね. あと、ipynbを実行した時にはhtmlに結果をexportしといてね.
+* ipynbを作成して分析を実行したときは、
+    * Add this command for all analysis notebooks. And make sure to insert Japanese summary comment (what you do) in just after each ipynb notebook chapter.
+    ```python
+    from etr.auto_import import *
+    HTML(full_width_display)
+    ```
+    * Make sure your new notebook has output cell (to see the result immediately)
+* NeuralNetworkのフレームワークはtorchをつかってね.
+
+## Backtest Tips
+### Exchange Transaction Fees (*not including Transaction Cost)
+- BitBank
+    - Maker: -2bps
+    - Taker: 12bps
+- BitFlyer:
+    - FXBTCJPY
+        - Maker: 0bps
+        - Taker: 0bps
+    - Others:
+        - Maker: 2bps (?)
+        - Taker: 10bps (?)
+- HyperLiquid
+    - Taker: 4.5bps
+    - Maker: 1.5bps
+
+### Backtest Sample
+実装したStrategyをrigorousにBacktestするNotebook: `notebooks/DevMM-backtest.ipynb`
+走らせるにはMarketBookやMarketTradeのデータがフルで必要なのでメモリリークに注意.
+1week程度ずつ走らせるのが推奨. ただしCryptについては平日土日かかわらず24H/365Dでデータがあるので注意.
+また、venue=bitflyerについては19:10UTC前後に板寄せがあるため`Rate`, `MarketBook`のデータに大きなジャンプが入るのでクレンジング推奨.

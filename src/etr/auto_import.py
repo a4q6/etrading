@@ -17,6 +17,7 @@ from IPython.display import HTML
 from pathlib import Path
 from tqdm.auto import tqdm
 from IPython import get_ipython
+import japanize_matplotlib
 
 ip = get_ipython()
 if ip is not None:
