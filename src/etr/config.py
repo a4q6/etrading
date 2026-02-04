@@ -17,6 +17,10 @@ class Config:
     COINCHECK_API_SECRET = os.getenv("COINCHECK_API_SECRET")
     BITBANK_API_KEY = os.getenv("BITBANK_API_KEY")
     BITBANK_API_SECRET = os.getenv("BITBANK_API_SECRET")
+    BITFLYER_API_KEY = os.getenv("BITFLYER_API_KEY")
+    BITFLYER_API_SECRET = os.getenv("BITFLYER_API_SECRET")
+    GMO_API_KEY = os.getenv("GMO_API_KEY")
+    GMO_API_SECRET = os.getenv("GMO_API_SECRET")
 
     JQUANTS_ID = os.getenv("JQUANTS_ID")
     JQUANTS_PW = os.getenv("JQUANTS_PW")
