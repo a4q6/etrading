@@ -401,22 +401,22 @@ class BitbankRestClient(ExchangeClientBase):
         count: int = 100,
         order_id: int = None,
         since: Optional[datetime.datetime] = None,
-        end:  Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
     ) -> List[Dict]:
         params = {"pair": self.as_bb_symbol(sym), "count": count}
         if order_id is not None:
             params["order_id"] = int(order_id)
         if since is not None:
-            params["since"] =  int(since.timestamp() * 1000)  # unixtime[ms]
+            params["since"] = int(since.timestamp() * 1000)  # unixtime[ms]
         if since is not None:
-            params["end"] =  int(end.timestamp() * 1000)  # unixtime[ms]
+            params["end"] = int(end.timestamp() * 1000)  # unixtime[ms]
         res = await self._request("GET", "/v1/user/spot/trade_history", params=params)
         return res
 
     async def fetch_open_positions(self) -> Dict:
         res = await self._request("GET", path="/v1/user/margin/positions")
         if res.get("success") != 1:
-            self.logger.error(f"Failed to fetch open positions.")
+            self.logger.error("Failed to fetch open positions.")
             self.logger.warning(f"Error cause: {self.get_error_cause(res)}")
             return res
         else:
@@ -424,7 +424,7 @@ class BitbankRestClient(ExchangeClientBase):
             self.logger.info(f"Updated margin position cache (REST) -- {self._margin_positions}")
             return res["data"]
 
-    async def fetch_account_balance(self):
+    async def fetch_account_balance(self) -> List[Dict]:
         res = await self._request("GET", path="/v1/user/assets")
         if res.get("success") != 1:
             self.logger.warning(f"APIError: {self.get_error_cause(res)}")
@@ -434,7 +434,7 @@ class BitbankRestClient(ExchangeClientBase):
         mapping = {
             "INACTIVE": OrderStatus.Sent,
             "UNFILLED": OrderStatus.Sent,
-            "PARTIALLY_FILLED": OrderStatus.Partial, 
+            "PARTIALLY_FILLED": OrderStatus.Partial,
             "FULLY_FILLED": OrderStatus.Filled,
             "CANCELED_UNFILLED": OrderStatus.Canceled,
             "CANCELED_PARTIALLY_FILLED": OrderStatus.Canceled,
