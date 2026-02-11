@@ -7,6 +7,7 @@ members = [
     "crates/etr-feed-bitbank",
     "crates/etr-feed-gmo",
     "crates/etr-feed-binance",
+    "crates/etr-hdb-dumper",
 ]
 
 [package]
@@ -18,6 +19,10 @@ edition = "2021"
 name = "etr-feed"
 path = "src/main.rs"
 
+[[bin]]
+name = "etr-hdb"
+path = "src/bin/etr_hdb.rs"
+
 [dependencies]
 etr-common = { path = "crates/etr-common" }
 etr-publisher = { path = "crates/etr-publisher" }
@@ -25,6 +30,7 @@ etr-feed-bitflyer = { path = "crates/etr-feed-bitflyer" }
 etr-feed-bitbank = { path = "crates/etr-feed-bitbank" }
 etr-feed-gmo = { path = "crates/etr-feed-gmo" }
 etr-feed-binance = { path = "crates/etr-feed-binance" }
+etr-hdb-dumper = { path = "crates/etr-hdb-dumper" }
 
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
