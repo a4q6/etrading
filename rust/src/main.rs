@@ -1,12 +1,16 @@
+use std::path::Path;
 use std::sync::Arc;
 
+use chrono::{NaiveDate, Utc};
 use clap::Parser;
 use tracing::{error, info};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::fmt::Layer;
+use tracing_subscriber::fmt::format::{self, FormatEvent, FormatFields};
+use tracing_subscriber::fmt::{self as fmt_mod, FmtContext};
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{self, EnvFilter};
 
 use etr_common::config::Config;
 use etr_feed_binance::BinanceSocketClient;
@@ -59,6 +63,9 @@ async fn main() {
 
     // Initialize tracing: console + file (daily rotation)
     let _guard = init_tracing(&config);
+
+    // Clean up process logs older than 14 days
+    cleanup_old_logs(&config.log_dir, "etr-feed.log.", 14);
 
     info!("etr-feed starting");
     if let Some(ref pairs) = args.bitflyer_pairs {
@@ -196,35 +203,100 @@ async fn futures_wait_all(handles: Vec<tokio::task::JoinHandle<()>>) {
     }
 }
 
+/// Delete log files older than `retain_days` in the given directory.
+fn cleanup_old_logs(log_dir: &Path, prefix: &str, retain_days: i64) {
+    let cutoff = Utc::now().date_naive() - chrono::Duration::days(retain_days);
+
+    let entries = match std::fs::read_dir(log_dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let fname = match entry.file_name().into_string() {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        if !fname.starts_with(prefix) {
+            continue;
+        }
+        let date_part = match fname.rsplit('.').next() {
+            Some(d) if d.len() == 10 => d,
+            _ => continue,
+        };
+        if let Ok(file_date) = NaiveDate::parse_from_str(date_part, "%Y-%m-%d") {
+            if file_date < cutoff {
+                let path = entry.path();
+                if std::fs::remove_file(&path).is_ok() {
+                    info!(file = %path.display(), "Deleted old process log");
+                }
+            }
+        }
+    }
+}
+
+/// Pipe-delimited log formatter.
+/// Console: `2025-02-11 12:30:45.123|INFO|message key=value ...`
+/// File:    `2025-02-11 12:30:45.123|INFO|module:line|message key=value ...`
+#[derive(Clone)]
+struct PipeFormatter {
+    include_location: bool,
+}
+
+impl<S, N> FormatEvent<S, N> for PipeFormatter
+where
+    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
+    N: for<'a> FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &FmtContext<'_, S, N>,
+        mut writer: format::Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        let now = Utc::now();
+        let meta = event.metadata();
+        let level = *meta.level();
+        write!(writer, "{}|{}|", now.format("%Y-%m-%d %H:%M:%S%.3f"), level)?;
+        if self.include_location {
+            let file = meta.file().unwrap_or("?");
+            // Strip path prefix, keep only filename
+            let file_short = file.rsplit('/').next().unwrap_or(file);
+            let line = meta.line().unwrap_or(0);
+            write!(writer, "{}:{}|", file_short, line)?;
+        }
+        ctx.field_format().format_fields(writer.by_ref(), event)?;
+        writeln!(writer)
+    }
+}
+
 /// Initialize tracing with both console and file output.
 /// File logs are written to `{LOG_DIR}/etr-feed.log` with UTC daily rotation (14 days kept).
 /// Returns a guard that must be held for the lifetime of the program to ensure logs are flushed.
 fn init_tracing(config: &Config) -> WorkerGuard {
-    // Ensure log directory exists
     std::fs::create_dir_all(&config.log_dir).expect("Failed to create log directory");
 
-    // File appender: daily rotation, UTC-based
     let file_appender = tracing_appender::rolling::daily(&config.log_dir, "etr-feed.log");
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
 
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"));
 
-    // Console layer (with ANSI colors)
-    let console_layer = Layer::new()
-        .with_target(false)
-        .with_ansi(true);
-
-    // File layer (no ANSI, for log files)
-    let file_layer = Layer::new()
-        .with_target(false)
-        .with_ansi(false)
-        .with_writer(file_writer);
-
     tracing_subscriber::registry()
         .with(env_filter)
-        .with(console_layer)
-        .with(file_layer)
+        .with(
+            fmt_mod::layer()
+                .event_format(PipeFormatter { include_location: false })
+                .with_ansi(false)
+                .with_writer(std::io::stdout),
+        )
+        .with(
+            fmt_mod::layer()
+                .event_format(PipeFormatter { include_location: true })
+                .with_ansi(false)
+                .with_writer(file_writer),
+        )
         .init();
 
     guard

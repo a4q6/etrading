@@ -32,6 +32,7 @@ etr-feed-gmo = { path = "crates/etr-feed-gmo" }
 etr-feed-binance = { path = "crates/etr-feed-binance" }
 etr-hdb-dumper = { path = "crates/etr-hdb-dumper" }
 
+chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"

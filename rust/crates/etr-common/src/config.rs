@@ -30,7 +30,7 @@ impl Config {
 
         let hdb_dir = std::env::var("HDB_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("./data/hdb"));
+            .unwrap_or_else(|_| PathBuf::from("./data/rhdb"));
 
         let discord_url_all = std::env::var("DISCORD_URL_ALL").ok();
 
