@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/etr-common",
+    "crates/etr-publisher",
+    "crates/etr-feed-bitflyer",
+    "crates/etr-feed-bitbank",
+    "crates/etr-feed-gmo",
+    "crates/etr-feed-binance",
+]
+
+[package]
+name = "etr-feed"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "etr-feed"
+path = "src/main.rs"
+
+[dependencies]
+etr-common = { path = "crates/etr-common" }
+etr-publisher = { path = "crates/etr-publisher" }
+etr-feed-bitflyer = { path = "crates/etr-feed-bitflyer" }
+etr-feed-bitbank = { path = "crates/etr-feed-bitbank" }
+etr-feed-gmo = { path = "crates/etr-feed-gmo" }
+etr-feed-binance = { path = "crates/etr-feed-binance" }
+
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
