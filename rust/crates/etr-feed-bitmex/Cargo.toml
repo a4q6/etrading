@@ -1,5 +1,5 @@
 [package]
-name = "etr-feed-bitflyer"
+name = "etr-feed-bitmex"
 version = "0.1.0"
 edition = "2021"
 
@@ -14,6 +14,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
-reqwest = { version = "0.12", features = ["json", "native-tls"] }
 tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }

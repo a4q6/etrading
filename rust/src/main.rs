@@ -15,8 +15,10 @@ use tracing_subscriber::{self, EnvFilter};
 use etr_common::config::Config;
 use etr_feed_binance::BinanceSocketClient;
 use etr_feed_bitbank::BitBankSocketClient;
-use etr_feed_bitflyer::BitFlyerSocketClient;
+use etr_feed_bitflyer::{BitFlyerFundingRate, BitFlyerSocketClient};
+use etr_feed_bitmex::BitmexSocketClient;
 use etr_feed_gmo::{GmoCryptSocketClient, GmoForexSocketClient};
+use etr_feed_hyperliquid::HyperliquidSocketClient;
 use etr_publisher::LocalWsPublisher;
 
 /// etr-feed: Rust-based exchange feed handler
@@ -42,6 +44,22 @@ struct Args {
     /// Binance currency pairs (comma-separated, e.g. "BTCUSDT,ETHUSDT")
     #[arg(long = "binance-pairs", value_delimiter = ',')]
     binance_pairs: Option<Vec<String>>,
+
+    /// BitMex currency pairs (comma-separated, e.g. "XBTUSD,ETHUSD")
+    #[arg(long = "bitmex-pairs", value_delimiter = ',')]
+    bitmex_pairs: Option<Vec<String>>,
+
+    /// HyperLiquid currency pairs (comma-separated, e.g. "HYPE,BTC,ETH")
+    #[arg(long = "hyperliquid-pairs", value_delimiter = ',')]
+    hyperliquid_pairs: Option<Vec<String>>,
+
+    /// Limit HyperLiquid candle subscriptions to specified pairs only
+    #[arg(long)]
+    hyperliquid_limit_candles: bool,
+
+    /// BitFlyer FundingRate pairs (comma-separated, e.g. "FX_BTC_JPY")
+    #[arg(long = "bitflyer-funding-pairs", value_delimiter = ',')]
+    bitflyer_funding_pairs: Option<Vec<String>>,
 
     /// WebSocket publisher port (set 0 to disable publisher)
     #[arg(long, default_value_t = 8765)]
@@ -82,6 +100,15 @@ async fn main() {
     }
     if let Some(ref pairs) = args.binance_pairs {
         info!("Binance pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.bitmex_pairs {
+        info!("BitMex pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.hyperliquid_pairs {
+        info!("HyperLiquid pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.bitflyer_funding_pairs {
+        info!("BitFlyer FundingRate pairs: {:?}", pairs);
     }
     info!("RTP dir: {:?}", config.rtp_dir);
     let pub_status = if args.no_publisher {
@@ -171,8 +198,44 @@ async fn main() {
         }));
     }
 
+    if let Some(pairs) = args.bitmex_pairs {
+        let mut handler = BitmexSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("BitMex feed handler stopped");
+        }));
+    }
+
+    if let Some(pairs) = args.hyperliquid_pairs {
+        let mut handler = HyperliquidSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            args.hyperliquid_limit_candles,
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("HyperLiquid feed handler stopped");
+        }));
+    }
+
+    if let Some(pairs) = args.bitflyer_funding_pairs {
+        let rtp_dir = config.rtp_dir.clone();
+        let mut handler = BitFlyerFundingRate::new(pairs, &rtp_dir);
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("BitFlyer FundingRate handler stopped");
+        }));
+    }
+
     if handles.is_empty() {
-        error!("No feed handlers configured. Use --bitflyer-pairs, --bitbank-pairs, --gmo-crypt-pairs, --gmo-forex-pairs, or --binance-pairs to specify at least one.");
+        error!("No feed handlers configured. Use --bitflyer-pairs, --bitbank-pairs, --gmo-crypt-pairs, --gmo-forex-pairs, --binance-pairs, --bitmex-pairs, --hyperliquid-pairs, or --bitflyer-funding-pairs to specify at least one.");
         return;
     }
 

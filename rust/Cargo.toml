@@ -7,6 +7,8 @@ members = [
     "crates/etr-feed-bitbank",
     "crates/etr-feed-gmo",
     "crates/etr-feed-binance",
+    "crates/etr-feed-bitmex",
+    "crates/etr-feed-hyperliquid",
     "crates/etr-hdb-dumper",
 ]
 
@@ -30,6 +32,8 @@ etr-feed-bitflyer = { path = "crates/etr-feed-bitflyer" }
 etr-feed-bitbank = { path = "crates/etr-feed-bitbank" }
 etr-feed-gmo = { path = "crates/etr-feed-gmo" }
 etr-feed-binance = { path = "crates/etr-feed-binance" }
+etr-feed-bitmex = { path = "crates/etr-feed-bitmex" }
+etr-feed-hyperliquid = { path = "crates/etr-feed-hyperliquid" }
 etr-hdb-dumper = { path = "crates/etr-hdb-dumper" }
 
 chrono = "0.4"

@@ -703,7 +703,9 @@ dependencies = [
  "etr-feed-binance",
  "etr-feed-bitbank",
  "etr-feed-bitflyer",
+ "etr-feed-bitmex",
  "etr-feed-gmo",
+ "etr-feed-hyperliquid",
  "etr-hdb-dumper",
  "etr-publisher",
  "tokio",
@@ -755,6 +757,24 @@ dependencies = [
  "etr-publisher",
  "futures-util",
  "ordered-float 4.6.0",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "etr-feed-bitmex"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
  "serde",
  "serde_json",
  "tokio",
@@ -773,6 +793,24 @@ dependencies = [
  "etr-publisher",
  "futures-util",
  "ordered-float 4.6.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "etr-feed-hyperliquid"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",
