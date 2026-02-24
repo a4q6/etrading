@@ -13,6 +13,7 @@ use tracing::{error, info};
 ///              `TP-{handler_class}-{SYMBOL}.log.YYYY-MM-DD` (rotated)
 ///
 /// Compatible with Python AsyncBufferedLogger and HdbDumper.
+#[derive(Clone)]
 pub struct TpLogger {
     tx: mpsc::UnboundedSender<String>,
 }

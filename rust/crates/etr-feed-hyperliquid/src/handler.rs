@@ -328,6 +328,7 @@ impl HyperliquidSocketClient {
         // Start OHLC write loop (check every 60s for un-emitted closed candles)
         let ohlc_for_loop = Arc::clone(&ohlc_cache);
         let pub_for_loop = self.publisher.clone();
+        let tp_for_loop = self.tp_loggers.clone();
         let running_for_loop = Arc::clone(&running);
         tokio::spawn(async move {
             loop {
@@ -359,6 +360,11 @@ impl HyperliquidSocketClient {
                             tokio::spawn(async move {
                                 pub_clone.send(&data_clone).await;
                             });
+                        }
+
+                        // TP log
+                        if let Some(logger) = tp_for_loop.get(ccypair) {
+                            logger.info(serde_json::to_string(&data).unwrap_or_default());
                         }
 
                         info!("OHLC write loop emitted candle for {}", ccypair);
@@ -422,11 +428,18 @@ impl HyperliquidSocketClient {
 
         let write = Arc::new(Mutex::new(write));
 
-        // Heartbeat task
+        // Heartbeat task — send application-level ping to keep connection alive
+        let write_for_heartbeat = Arc::clone(&write);
         let heartbeat_handle = tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(60)).await;
-                info!("(heartbeat) Hyperliquid WebSocket is alive");
+                tokio::time::sleep(Duration::from_secs(50)).await;
+                let ping_msg = json!({"method": "ping"});
+                let mut w = write_for_heartbeat.lock().await;
+                if let Err(e) = w.send(Message::Text(ping_msg.to_string().into())).await {
+                    warn!("Failed to send heartbeat ping: {}", e);
+                    break;
+                }
+                info!("(heartbeat) sent ping to Hyperliquid");
             }
         });
 
@@ -445,14 +458,14 @@ impl HyperliquidSocketClient {
             }
         }
 
-        // Message read loop
+        // Message read loop (with timeout to detect stale connections)
         let result = loop {
             if !self.running {
                 break Ok(());
             }
 
-            match read.next().await {
-                Some(Ok(Message::Text(text))) => {
+            match tokio::time::timeout(Duration::from_secs(120), read.next()).await {
+                Ok(Some(Ok(Message::Text(text)))) => {
                     match serde_json::from_str::<Value>(&text) {
                         Ok(message) => {
                             if message.get("channel").is_none() {
@@ -466,21 +479,28 @@ impl HyperliquidSocketClient {
                         }
                     }
                 }
-                Some(Ok(Message::Close(_))) => {
+                Ok(Some(Ok(Message::Close(_)))) => {
                     info!("Websocket closed OK");
                     break Ok(());
                 }
-                Some(Ok(Message::Ping(data))) => {
+                Ok(Some(Ok(Message::Ping(data)))) => {
                     let mut w = write.lock().await;
                     let _ = w.send(Message::Pong(data)).await;
                 }
-                Some(Err(e)) => {
+                Ok(Some(Err(e))) => {
                     error!("Websocket closed ERR: {}", e);
                     break Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>);
                 }
-                None => {
+                Ok(None) => {
                     info!("WebSocket stream ended");
                     break Ok(());
+                }
+                Err(_) => {
+                    warn!("WebSocket read timeout (120s), reconnecting...");
+                    break Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "WebSocket read timeout",
+                    )) as Box<dyn std::error::Error + Send + Sync>);
                 }
                 _ => {}
             }
@@ -722,12 +742,13 @@ impl HyperliquidSocketClient {
                 },
             );
         } else {
-            // Same candle period — update in place
+            // Same candle period — update data but preserve emitted flag
+            let prev_emitted = cache.get(&ccypair).map(|e| e.emitted).unwrap_or(false);
             cache.insert(
                 ccypair,
                 OhlcEntry {
                     data: cur_msg,
-                    emitted: false,
+                    emitted: prev_emitted,
                 },
             );
         }
