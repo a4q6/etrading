@@ -183,7 +183,10 @@ class Order:
 
     @property
     def is_live(self) -> bool:
-        return (self.order_status in (OrderStatus.Partial, OrderStatus.Sent, OrderStatus.New, OrderStatus.Updated))
+        return (self.order_status in (
+            OrderStatus.New, OrderStatus.Sent, OrderStatus.Partial,
+            OrderStatus.Updated, OrderStatus.PendingCancel, OrderStatus.PendingUpdate,
+        ))
 
     @staticmethod
     def null_order() -> 'Order':
@@ -259,11 +262,13 @@ class OrderType:
 class OrderStatus:
     Null = ""
     New = "new"
+    Sent = "sent"
     Updated = "updated"
+    PendingCancel = "pending_cancel"
+    PendingUpdate = "pending_update"
     Partial = "partial"
     Canceled = "canceled"
     Filled = "filled"
-    Sent = "sent"
 
     @staticmethod
     def convert(res: str = None, order=None) -> str:
