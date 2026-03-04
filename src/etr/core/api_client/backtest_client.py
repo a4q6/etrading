@@ -17,9 +17,9 @@ class BacktestClient(ExchangeClientBase):
         self,
         venue: str,
         min_amount_decimal=4,
-        order_latency: float = 0.200,   # seconds: New -> Sent
+        order_latency: float = 0.100,   # seconds: New -> Sent
         cancel_latency: float = 0.100,  # seconds: PendingCancel -> Canceled
-        amend_latency: float = 0.200,   # seconds: PendingUpdate -> Updated
+        amend_latency: float = 0.100,   # seconds: PendingUpdate -> Updated
     ):
         self.venue = venue
         self.min_amount_decimal = min_amount_decimal
@@ -47,6 +47,7 @@ class BacktestClient(ExchangeClientBase):
         # full event log: every status transition in chronological order
         self.order_events: List[BacktestOrder] = []
 
+        self.pending_positions = False  # always False in backtest
         self.closed_pnl = 0
         self.open_pnl = {}
         self.positions = {}  # {sym: (vwap, amount)}
@@ -182,8 +183,8 @@ class BacktestClient(ExchangeClientBase):
         if not dtype.startswith("BT_"):
             return
 
-        msg_timestamp = msg.get("timestamp")
         msg_mct = msg.get("market_created_timestamp")
+        msg_timestamp = msg.get("timestamp") or msg_mct
 
         # --- 1. New -> Sent (order_latency elapsed) ---
         sent_ids = []
