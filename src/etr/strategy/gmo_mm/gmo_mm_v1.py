@@ -426,8 +426,6 @@ class GmoMMv1(StrategyBase):
             return
         if len(self.dev_hist) < 10:
             return
-        if len(self.client.pending_limit_orders) > 0:
-            return
 
         ts = msg.get("timestamp")
 

@@ -346,6 +346,7 @@ class GmoRestClient(ExchangeClientBase):
         # Update order info
         order_id = res.get("data")  # GMO returns order ID directly in "data" field
         data.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
+        data.market_created_timestamp = pd.Timestamp(res["responsetime"])
         data.order_id = str(order_id)
         data.order_status = OrderStatus.Sent
         data.universal_id = uuid4().hex
@@ -502,6 +503,22 @@ class GmoRestClient(ExchangeClientBase):
         **kwargs
     ) -> Order:
         """Cancel an order."""
+
+        # store PendingCancel status
+        if order_id in self._order_cache:
+            oinfo = copy(self._order_cache[order_id])
+            oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
+            oinfo.market_created_timestamp = pd.NaT
+            oinfo.order_status = OrderStatus.PendingCancel
+            oinfo.src_type = src_type
+            oinfo.src_id = src_id
+            oinfo.src_timestamp = src_timestamp
+            oinfo.misc = misc
+            oinfo.universal_id = uuid4().hex
+            self._order_cache[oinfo.order_id] = oinfo
+            asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))
+
+        # send request
         body = {"orderId": int(order_id)}
         res = await self._request("POST", "/v1/cancelOrder", body=body)
         if return_raw_response:
@@ -512,7 +529,7 @@ class GmoRestClient(ExchangeClientBase):
             if order_id in self._order_cache:
                 oinfo = copy(self._order_cache[order_id])
                 oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
-                oinfo.market_created_timestamp = datetime.datetime.now(datetime.timezone.utc)
+                oinfo.market_created_timestamp = pd.Timestamp(res["responsetime"])
                 oinfo.order_status = OrderStatus.Canceled
                 oinfo.src_type = src_type
                 oinfo.src_id = src_id
@@ -523,6 +540,7 @@ class GmoRestClient(ExchangeClientBase):
                 asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))
                 return oinfo
             else:
+                # Unknow order
                 oinfo = Order(
                     timestamp=datetime.datetime.now(datetime.timezone.utc),
                     market_created_timestamp=datetime.datetime.now(datetime.timezone.utc),
@@ -572,6 +590,7 @@ class GmoRestClient(ExchangeClientBase):
                 if side is None or order.side == side:
                     order.order_status = OrderStatus.Canceled
                     order.timestamp = datetime.datetime.now(datetime.timezone.utc)
+                    order.market_created_timestamp = pd.Timestamp(res["responsetime"])
                     self._order_cache[order_id] = order
 
         return []
