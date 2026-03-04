@@ -2,33 +2,49 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## プロジェクト概要
 
-etrading is a Python-based algorithmic trading framework for cryptocurrency and FX markets. It handles real-time market data from multiple exchanges, executes trading strategies, and stores historical data.
+暗号資産・FXの高頻度取引(HFT)フレームワーク。マルチ取引所対応のマーケットメイキング戦略を開発・バックテスト・本番運用するためのシステム。
 
-## Common Commands
+## 開発コマンド
 
 ```bash
-# Install package in editable mode
+# インストール (開発モード)
 pip install -e .
 
-# Install dependencies
-pip install -r requirements.txt
+# テスト実行
+pytest tests/
+pytest tests/test_gmo_private_api.py  # 単体テスト
 
-# Run feed process (market data aggregator)
-python scripts/feed_process.py
-
-# Run a trading strategy
-python scripts/run_imb_mm_bb_btc.py
-python scripts/run_dev_mm_v1.py
-
-# Run HDB (Historical Database) dump loop
-python scripts/hdb_loop.py
+# ノートブック実行 (タイムアウト延長必須)
+jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=3600 notebook.ipynb
 ```
 
-## Architecture
+## アーキテクチャ
 
-### Data Flow
+### コア構造 (`src/etr/`)
+
+```
+ExchangeClientBase (core/api_client/base.py)
+  ├── BacktestClient (core/api_client/backtest_client.py) - バックテスト用
+  ├── GmoRestClient (core/api_client/gmo/gmo.py)
+  ├── BitFlyerClient (core/api_client/bitflyer/bitflyer.py)
+  ├── BitbankClient (core/api_client/bitbank/bitbank.py)
+  └── CoincheckClient (core/api_client/coincheck.py)
+
+StrategyBase (strategy/base_strategy.py)
+  └── VolatilityAdaptiveMM, CrossFee, ToD...
+
+FeedHandler (core/feed_handler/) - Websocket接続
+  ├── GMO (gmo_crypt.py, gmo_forex.py, gmo_private_stream.py)
+  ├── BitFlyer (bitflyer.py, bitflyer_private_stream.py)
+  ├── BitBank (bitbank_private_stream.py)
+  ├── Binance (binance.py)
+  ├── BitMex (bitmex.py)
+  └── HyperLiquid (hyperliquid.py)
+```
+
+### メッセージフロー
 
 ```
 [Exchange WebSockets] → [FeedHandler] → [LocalWsPublisher:8765] → [LocalWsClient] → [Strategy]
@@ -42,102 +58,107 @@ python scripts/hdb_loop.py
 4. **TP (Tick Print) logs** capture raw data in `data/tp/`
 5. **HdbDumper** converts TP logs to Parquet files in `data/hdb/`
 
-### Key Data Types (`src/etr/core/datamodel/datamodel.py`)
+メッセージの `_data_type` フィールドで分岐: `Rate`, `MarketTrade`, `MarketBook`, `Order`
 
-- `MarketTrade`: Market execution events
-- `Rate`: Best bid/ask snapshot
-- `MarketBook`: Full order book
-- `Order`: Order state tracking (Sent → New → Partial → Filled/Canceled)
-- `Trade`: Own execution records
+バックテスト時は `BT_Rate` (1s resample.last()) + `BT_MarketTrade` + `BT_MarketBook` がBacktestClientに送られる。
 
-### Strategy Implementation
+### データモデル (`core/datamodel/datamodel.py`)
 
-Strategies extend `StrategyBase` (`src/etr/strategy/base_strategy.py`) and implement:
+- **Rate**: best_bid, best_ask, mid_price, spread, latency
+- **MarketBook**: bids/asks (SortedDict[price, size])
+- **MarketTrade**: side, price, amount, trade_id
+- **Order / BacktestOrder**: order_type, order_status, executed_amount
+
+### データストレージ
+
+- **HDB**: `data/hdb/{table}/{venue}/{YYYY-MM-DD}/{symbol}/*.parquet`
+- **TP logs**: `data/tp/TP-{HandlerClass}-{Symbol}.log` (`timestamp||{json}` format)
+- **読込**: `load_data(date=[start, end], table, venue, symbol)` → DataFrame
+- **一覧**: `list_table(date)` でその日の利用可能テーブル確認
+- **JQuants**: `etr.data.jquants.sqlite.get(query)`, DDLは `src/etr/data/jquants/ddl/jquants_v2_ddl_00.sql`
+
+### タイムスタンプ規則
+
+- `timestamp`: 受信時刻 (トレード環境基準、バックテストではこちらを使う)
+- `market_created_timestamp`: 取引所タイムスタンプ
+- 将来情報の先読み厳禁: シグナル生成には必ず `timestamp` を基準にする
+
+### 設定 (`config.py`)
+
+`.env` から認証情報を読み込み。`Config.BITFLYER_API_KEY`, `Config.GMO_API_KEY`, `Config.TP_DIR`, `Config.HDB_DIR` 等。
+
+## 重要なパターンと注意点
+
+### BacktestClient の初期化
+
+`BacktestClient` は `super().__init__()` を呼ばないため、手動で設定が必要:
 ```python
-@abstractmethod
-def on_message(self, msg: Dict):
-    # Handle incoming messages by _data_type:
-    # "Rate", "MarketBook", "MarketTrade", "Order", "Trade"
+client = BacktestClient(venue="gmo")
+client.pending_positions = False  # 必須
 ```
 
-### Subscription Model
+### MarketBook の扱い
 
-LocalWsClient subscribes by filter dictionaries with keys: `_data_type`, `venue`, `sym`
+bids/asks は numpy配列の `[price, size]` ペア。空チェックは `len(bids) > 0` を使う (`if bids` はNG)。値の取得は `float(bids[0][1])`。
+
+### メモリ管理 (64GB制限)
+
+バックテストは1週間(日曜〜土曜)ずつ実行し、各ループ後に `gc.collect()` を呼ぶ。
+
+### BitFlyer板寄せ
+
+19:05-19:15 UTC にRate/MarketBookが跳ねるため、この時間帯はクレンジング推奨。
+
+### FIFO PnL計算
+
 ```python
-await subscriber.subscribe([
-    {"_data_type": "Rate", "venue": "bitbank", "sym": "BTCJPY"},
-    {"_data_type": "MarketBook", "venue": "bitbank", "sym": "BTCJPY"},
-])
+from etr.core.fifo import calc_matching_table
+df_matching = calc_matching_table(client.transactions_frame)
+# カラム: pl_bp, horizon, rinc_price, rdec_price
 ```
 
-## Configuration
+## 取引手数料
 
-Environment variables in `.env`:
-- `LOG_DIR`, `TP_DIR`, `HDB_DIR`: Data directories
-- `{EXCHANGE}_API_KEY`, `{EXCHANGE}_API_SECRET`: Exchange credentials
-- `DISCORD_URL_*`: Notification webhooks
-- `JQUANTS_*`: J-Quants API for Japanese equities
+| Venue | 種別 | Maker | Taker |
+|-------|------|-------|-------|
+| GMO | レバレッジ (XXXJPY) | 0bps | 0bps |
+| GMO | 現物 (XXX) | -1bps | 5bps |
+| BitFlyer | FXBTCJPY | 0bps | 0bps |
+| BitBank | 全般 | -2bps | 12bps |
+| HyperLiquid | 全般 | 1.5bps | 4.5bps |
 
-全てのenv変数はPython runtimeの場合、`etr.config.Config` から利用できる.
+## ノートブック規約
 
-## Instructions
+- 先頭セルに必ず:
+  ```python
+  from etr.auto_import import *
+  HTML(full_width_display)
+  ```
+- 各チャプター直後に日本語の要約コメントを挿入
+- 出力セル(output cell)を必ず含める
+- NNフレームワークはPyTorchを使用
+- バックテストの参考実装: `notebooks/DevMM-backtest.ipynb`
+- GMO HFT戦略の詳細要件: `notebooks/GMO-HFT/README.md`
+
+## 本番運用
+
+- 戦略スクリプト: `scripts/run_*.py`
+- フィード処理: `scripts/feed_process.py`
+- Discord通知: `core/notification/discord.py`
+- 非同期ログ: `AsyncBufferedLogger` (core/async_logger.py)
+- CEP: EMA/OHLC/ImpactPriceのリアルタイム計算 (`core/cep/`)
+
+## Tips
+
+### Instructions
 * 現状の作業の状態は適宜`CLAUDE_LOG.md`に書き込みしてね.
 * ipynbを作成して分析を実行したときは、
-    * Add this command for all analysis notebooks. And make sure to insert Japanese summary comment (what you do) in just after each ipynb notebook chapter.
-    ```python
-    from etr.auto_import import *
-    HTML(full_width_display)
-    ```
     * Make sure your new notebook has output cell (to see the result immediately)
-    * Set this option `--ExecutePreprocessor.timeout=3600` to avoid timeout 
 * NeuralNetworkのフレームワークはtorchをつかってね.
-* JQuantsの `markets_margin_interest` tableは週次のデータが翌週の第二営業日の夜間に更新される一方、`Date`列は金曜日を示しているので注意.
+* JQuantsの `markets_margin_interest` tableは週次のデータが翌週の第二営業日の夜間に更新される一方、`Date`列は金曜日を示しているので注意
 
-## Backtest Tips
-### Exchange Transaction Fees (*not including Transaction Cost)
-- BitBank
-    - Maker: -2bps
-    - Taker: 12bps
-- BitFlyer:
-    - FXBTCJPY
-        - Maker: 0bps
-        - Taker: 0bps
-    - Others:
-        - Maker: 2bps (?)
-        - Taker: 10bps (?)
-- HyperLiquid
-    - Taker: 4.5bps
-    - Maker: 1.5bps
-- GMO
-    - XXXJPY (leverage ccypairs e.g. BTCJPY, ETHJPY)
-        - Taker: 0bps
-        - Maker: 0bps
-    - XXX (spot ccypairs e.g. BTC, ETH)
-        - Maker: -1bps
-        - Taker: 5bps
-
-### Backtest Sample
-実装したStrategyをrigorousにBacktestするNotebook: `notebooks/DevMM-backtest.ipynb`
-走らせるにはMarketBookやMarketTradeのデータがフルで必要なのでメモリリークに注意.
-1week程度ずつ走らせるのが推奨(日曜~土曜の7日間ずつ).
-また、venue=bitflyerについては19:10UTC前後に板寄せがあるため`Rate`, `MarketBook`のデータに大きなジャンプが入るのでクレンジング推奨.
-
-
-## Data Storage
-
-- **TP logs**: `data/tp/TP-{HandlerClass}-{Symbol}.log` (JSON lines with `timestamp||{json}` format)
-- **HDB**: `data/hdb/{table}/{venue}/{YYYY-MM-DD}/{symbol}/*.parquet`
-
-### Supported Exchanges
-
-BitBank, BitMex, BitFlyer, Binance, Coincheck, GMO (FX/Crypto), Hyperliquid
-
-### Table List (Crypt)
-- CryptのHDBは`etr.data.data_loader.load_data(date, table, venue, symbol)`でparquetをロードできる
-- CryptのHDBは`etr.data.data_loader.list_table(date)`でその日のデータリストを確認できる
-- JQuantsのDataは `etr.data.jquants.sqlite.get(query)`でロードでき、 DDLはここから確認できる`src/etr/data/jquants/ddl/jquants_v2_ddl_00.sql`
-
-2026/01/10現在のCryptのテーブル一覧は下記 ((*Hyperliquid除く.これは大量の通貨ペアでCandlesテーブルが利用可能.):
+### データテーブルリスト
+2026/01/10現在のCryptのテーブル一覧は下記 ((*Hyperliquid除く.これは大量の通貨ペアでCandlesテーブルが利用可能).
 | table           | venue       | sym        |
 |:----------------|:------------|:-----------|
 | MarketTrade     | bitmex      | LTCUSD     |
@@ -279,5 +300,3 @@ BitBank, BitMex, BitFlyer, Binance, Coincheck, GMO (FX/Crypto), Hyperliquid
 | Rate            | bitbank     | SOLJPY     |
 | Rate            | bitbank     | LTCJPY     |
 | Rate            | bitbank     | ETHJPY     |
-
-
