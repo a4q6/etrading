@@ -27,7 +27,7 @@ if __name__ == '__main__':
         gmo_cr = GmoCryptSocketClient(ccy_pairs=["BTC", "ETH", "XRP", "LTC", "DOGE", "SOL", "BTC_JPY", "ETH_JPY", "XRP_JPY", "LTC_JPY", "DOGE_JPY", "SOL_JPY"], publisher=publisher)
         coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"], publisher=publisher)
         binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
-        binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
+        # binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
         coinbase = CoinbaseSocketClient(ccy_pairs=["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "DOGE-USD", "LTC-USD"], publisher=publisher)
         bybit_linear = BybitLinearSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT", "LTCUSDT"], publisher=publisher)
         okx = OkxSwapSocketClient(ccy_pairs=["BTC-USDT-SWAP", "ETH-USDT-SWAP", "XRP-USDT-SWAP", "SOL-USDT-SWAP", "DOGE-USDT-SWAP", "LTC-USDT-SWAP"], publisher=publisher)
@@ -46,7 +46,7 @@ if __name__ == '__main__':
                 coincheck.start(),
                 bitflyer_fr.start(),
                 binance.start(),
-                binance_opt.start(),
+                # binance_opt.start(),
                 bitbank_private.start(),
                 coinbase.start(),
                 bybit_linear.start(),
@@ -67,7 +67,7 @@ if __name__ == '__main__':
                 gmo_cr.close(),
                 coincheck.close(),
                 binance.close(),
-                binance_opt.close(),
+                # binance_opt.close(),
                 bitbank_private.close(),
                 coinbase.close(),
                 bybit_linear.close(),

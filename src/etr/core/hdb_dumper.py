@@ -193,7 +193,10 @@ class HdbDumper:
     ):
         def closure():
             while True:
-                self.dump_all(n_days=n_days)
+                try:
+                    self.dump_all(n_days=n_days)
+                except Exception as e:
+                    self.logger.error(f"{e}", exc_info=True)
 
                 # logging
                 prev_date = pd.Timestamp.today(tz="UTC") - pd.Timedelta("1D")
