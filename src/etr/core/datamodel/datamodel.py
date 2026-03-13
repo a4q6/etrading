@@ -23,6 +23,10 @@ class VENUE:
     BITBANK: str = "bitbank"
     GMO: str = "gmo"
     HYPERLIQUID: str = "hyperliquid"
+    KRAKEN: str = "kraken"
+    COINBASE: str = "coinbase"
+    BYBIT_LINEAR: str = "bybit_linear"
+    OKX: str = "okx"
 
 
 @dataclass

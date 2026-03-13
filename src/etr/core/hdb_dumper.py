@@ -31,9 +31,15 @@ class HdbDumper:
         "BitFlyerFundingRate": ["FundingRate"],
         "BinanceSocketClient": ["Rate", "MarketTrade"],
         "BinanceRestEoption": ["ImpliedVolatility"],
+        "HyperliquidSocketClient": ["MarketTrade", "Candle"],
+        "CoinbaseSocketClient": ["Rate", "MarketBook", "MarketTrade"],
+        "BybitLinearSocketClient": ["Rate", "MarketBook", "MarketTrade"],
+        "OkxSwapSocketClient": ["Rate", "MarketBook", "MarketTrade"],
+
         "CoincheckPrivate": ["Order", "Trade"],
         "BitBankPrivate": ["Order", "Trade", "PositionUpdate"],
-        "HyperliquidSocketClient": ["MarketTrade", "Candle"],
+        "BitflyerPrivate": ["Order", "Trade"],
+        "GmoPrivate": ["Order", "Trade"],
     }
     venue_map = {
         "BitmexSocketClient": VENUE.BITMEX,
@@ -45,13 +51,21 @@ class HdbDumper:
         "BitFlyerFundingRate": VENUE.BITFLYER,
         "BinanceSocketClient": VENUE.BINANCE,
         "BinanceRestEoption": VENUE.BINANCE,
+        "HyperliquidSocketClient": VENUE.HYPERLIQUID,
+        "CoinbaseSocketClient": VENUE.COINBASE,
+        "BybitLinearSocketClient": VENUE.BYBIT_LINEAR,
+        "OkxSwapSocketClient": VENUE.OKX,
+
         "BitBankPrivate": VENUE.BITBANK,
         "CoincheckPrivate": VENUE.COINCHECK,
-        "HyperliquidSocketClient": VENUE.HYPERLIQUID,
+        "BitflyerPrivate": VENUE.BITFLYER,
+        "GmoPrivate": VENUE.GMO,
     }
     mtp_list = [
         "BitBankPrivate",
         "CoincheckPrivate",
+        "BitflyerPrivate",
+        "GmoPrivate",
     ]
 
     def __init__(self, hdb_dir: str = Config.HDB_DIR, tp_dir: str = Config.TP_DIR):
