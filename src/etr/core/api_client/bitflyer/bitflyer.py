@@ -122,6 +122,7 @@ class BitflyerRestClient(ExchangeClientBase):
         path: str,
         params: dict = None,
         body: dict = None,
+        parse_json_body: bool = True,
     ) -> Dict:
         """Make authenticated request to bitFlyer API."""
         url = self.BASE_URL + path
@@ -144,14 +145,20 @@ class BitflyerRestClient(ExchangeClientBase):
                         error_text = await resp.text()
                         self.logger.error(f"API Error: {resp.status} - {error_text}")
                         return {"success": False, "error": error_text, "status": resp.status}
-                    return await resp.json()
+                    if parse_json_body:
+                        return await resp.json()
+                    else:
+                        return {"success": True}
             elif method.upper() == "POST":
                 async with session.post(url, headers=headers, data=body_str) as resp:
                     if resp.status != 200:
                         error_text = await resp.text()
                         self.logger.error(f"API Error: {resp.status} - {error_text}")
                         return {"success": False, "error": error_text, "status": resp.status}
-                    return await resp.json()
+                    if parse_json_body:
+                        return await resp.json()
+                    else:
+                        return {"success": True}
             else:
                 raise NotImplementedError(f"HTTP method {method} not supported")
 
@@ -263,6 +270,21 @@ class BitflyerRestClient(ExchangeClientBase):
         **kwargs
     ) -> Order:
         """Cancel an order."""
+
+        # store PendingCancel status
+        if order_id in self._order_cache:
+            oinfo = copy(self._order_cache[order_id])
+            oinfo.timestamp = datetime.datetime.now(datetime.timezone.utc)
+            oinfo.market_created_timestamp = pd.NaT
+            oinfo.order_status = OrderStatus.PendingCancel
+            oinfo.src_type = src_type
+            oinfo.src_id = src_id
+            oinfo.src_timestamp = src_timestamp
+            oinfo.misc = misc
+            oinfo.universal_id = uuid4().hex
+            self._order_cache[oinfo.order_id] = oinfo
+            asyncio.create_task(self.ticker_plant.info(json.dumps(oinfo.to_dict())))
+
         if sym is not None:
             product_code = self.as_bf_symbol(sym)
         elif order_id in self._order_cache:
@@ -274,12 +296,12 @@ class BitflyerRestClient(ExchangeClientBase):
             "product_code": product_code,
             "child_order_acceptance_id": order_id,
         }
-        res = await self._request("POST", "/v1/me/cancelchildorder", body=body)
+        res = await self._request("POST", "/v1/me/cancelchildorder", body=body, parse_json_body=False)
         if return_raw_response:
             return res
 
         # bitFlyer returns empty response on successful cancel
-        if res is None or res == {} or (isinstance(res, dict) and "success" not in res):
+        if res is None or res == {} or (isinstance(res, dict) and res.get("success")):
             # Success
             if order_id in self._order_cache:
                 oinfo = copy(self._order_cache[order_id])
@@ -324,7 +346,7 @@ class BitflyerRestClient(ExchangeClientBase):
         self,
         timestamp: datetime.datetime,
         sym: str,
-        own_only=False
+        own_only=True
     ):
         """Cancel all open orders for a symbol."""
         self.logger.info(f"Try canceling all open orders (sym={sym})...")
@@ -332,7 +354,7 @@ class BitflyerRestClient(ExchangeClientBase):
         if not own_only:
             # Use cancelallchildorders API
             body = {"product_code": self.as_bf_symbol(sym)}
-            res = await self._request("POST", "/v1/me/cancelallchildorders", body=body)
+            res = await self._request("POST", "/v1/me/cancelallchildorders", body=body, parse_json_body=False)
             self.logger.info(f"cancelallchildorders result: {res}")
             # Mark all cached orders as canceled
             for order_id, order in list(self._order_cache.items()):
@@ -349,6 +371,7 @@ class BitflyerRestClient(ExchangeClientBase):
         if not isinstance(res, list):
             self.logger.error(f"Failed to fetch open orders: {res}")
             return []
+        self.logger.info(f"Open orders: {res}")
 
         results = []
         for o in res:
@@ -407,7 +430,10 @@ class BitflyerRestClient(ExchangeClientBase):
                     order_status=self._convert_order_status(order_data["child_order_state"]),
                     venue=VENUE.BITFLYER,
                     order_id=order_id,
+                    universal_id=uuid4.hex,
+                    misc="check_order"
                 )
+                asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))
 
             data.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
             data.market_created_timestamp = pd.to_datetime(order_data["child_order_date"]).tz_localize("UTC")
@@ -416,9 +442,7 @@ class BitflyerRestClient(ExchangeClientBase):
             data.order_status = self._convert_order_status(order_data["child_order_state"])
             if order_data.get("average_price"):
                 data.price = order_data["average_price"]
-            data.universal_id = uuid4().hex
             self._order_cache[order_id] = data
-            asyncio.create_task(self.ticker_plant.info(json.dumps(data.to_dict())))
             return data
 
         return None
