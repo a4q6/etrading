@@ -97,7 +97,11 @@ class OkxSwapSocketClient:
 
     async def _connect(self):
         self.logger.info(f"Connecting to {self.WS_URL}")
-        async with websockets.connect(self.WS_URL) as ws:
+        async with websockets.connect(self.WS_URL,
+            ping_interval=30,
+            ping_timeout=30,
+            max_queue=None,
+        ) as ws:
             self._connected = True
             self._ws = ws
 

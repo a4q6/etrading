@@ -94,7 +94,12 @@ class _BybitSocketClientBase:
     async def _connect(self):
         self.logger.info(f"Connecting to {self.WS_URL}")
         # max_size=None: spot snapshots can exceed the websockets default frame limit
-        async with websockets.connect(self.WS_URL, max_size=None, ping_interval=None) as ws:
+        async with websockets.connect(
+            self.WS_URL,
+            ping_interval=30,
+            ping_timeout=30,
+            max_queue=None,
+        ) as ws:
             self._connected = True
             self._ws = ws
 

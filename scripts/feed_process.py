@@ -28,9 +28,9 @@ if __name__ == '__main__':
         coincheck = CoincheckSocketClient(ccy_pairs=["btc_jpy", "eth_jpy", "xrp_jpy", "doge_jpy"], publisher=publisher)
         binance = BinanceSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "LTCUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
         # binance_opt = BinanceRestEoption(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT"], publisher=publisher)
-        coinbase = CoinbaseSocketClient(ccy_pairs=["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "DOGE-USD", "LTC-USD"], publisher=publisher)
-        bybit_linear = BybitLinearSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT", "LTCUSDT"], publisher=publisher)
-        okx = OkxSwapSocketClient(ccy_pairs=["BTC-USDT-SWAP", "ETH-USDT-SWAP", "XRP-USDT-SWAP", "SOL-USDT-SWAP", "DOGE-USDT-SWAP", "LTC-USDT-SWAP"], publisher=publisher)
+        # coinbase = CoinbaseSocketClient(ccy_pairs=["BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "DOGE-USD", "LTC-USD"], publisher=publisher)
+        # bybit_linear = BybitLinearSocketClient(ccy_pairs=["BTCUSDT", "ETHUSDT", "XRPUSDT", "SOLUSDT", "DOGEUSDT", "LTCUSDT"], publisher=publisher)
+        # okx = OkxSwapSocketClient(ccy_pairs=["BTC-USDT-SWAP", "ETH-USDT-SWAP", "XRP-USDT-SWAP", "SOL-USDT-SWAP", "DOGE-USDT-SWAP", "LTC-USDT-SWAP"], publisher=publisher)
 
         # private stream
         bitbank_private = BitbankPrivateStreamClient(publisher=publisher)
@@ -48,9 +48,9 @@ if __name__ == '__main__':
                 binance.start(),
                 # binance_opt.start(),
                 bitbank_private.start(),
-                coinbase.start(),
-                bybit_linear.start(),
-                okx.start(),
+                # coinbase.start(),
+                # bybit_linear.start(),
+                # okx.start(),
             )
 
         except KeyboardInterrupt:
@@ -69,9 +69,9 @@ if __name__ == '__main__':
                 binance.close(),
                 # binance_opt.close(),
                 bitbank_private.close(),
-                coinbase.close(),
-                bybit_linear.close(),
-                okx.close(),
+                # coinbase.close(),
+                # bybit_linear.close(),
+                # okx.close(),
             )
 
     asyncio.run(main())

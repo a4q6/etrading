@@ -94,7 +94,7 @@ class CoinbaseSocketClient:
     async def _connect(self):
         self.logger.info(f"Connecting to {self.WS_URL}")
         # max_size=None: Coinbase level2 snapshots can exceed the default frame size limit
-        async with websockets.connect(self.WS_URL, max_size=None) as websocket:
+        async with websockets.connect(self.WS_URL, max_size=None, ping_interval=None) as websocket:
             self._connected = True
             self._ws = websocket
 
