@@ -16,6 +16,9 @@ pub mod venue {
     pub const GMO: &str = "gmo";
     pub const HYPERLIQUID: &str = "hyperliquid";
     pub const COINCHECK: &str = "coincheck";
+    pub const OKX: &str = "okx";
+    pub const COINBASE: &str = "coinbase";
+    pub const BYBIT_LINEAR: &str = "bybit_linear";
 }
 
 // ---------------------------------------------------------------------------

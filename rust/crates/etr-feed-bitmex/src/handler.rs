@@ -494,7 +494,7 @@ impl BitmexSocketClient {
                     });
                 }
 
-                // TP log with 250ms throttling
+                // TP log with 100ms throttling
                 let now = book.timestamp;
                 let last = self
                     .last_emit_market_book
@@ -502,7 +502,7 @@ impl BitmexSocketClient {
                     .copied()
                     .unwrap_or(DateTime::from_timestamp(0, 0).unwrap_or_else(Utc::now));
 
-                if last + TimeDelta::milliseconds(250) < now {
+                if last + TimeDelta::milliseconds(100) < now {
                     if let Some(logger) = self.tp_loggers.get(sym.as_str()) {
                         logger.info(json_str);
                     }

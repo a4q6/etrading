@@ -17,8 +17,12 @@ use etr_feed_binance::BinanceSocketClient;
 use etr_feed_bitbank::BitBankSocketClient;
 use etr_feed_bitflyer::{BitFlyerFundingRate, BitFlyerSocketClient};
 use etr_feed_bitmex::BitmexSocketClient;
+use etr_feed_bybit::BybitLinearSocketClient;
+use etr_feed_coinbase::CoinbaseSocketClient;
+use etr_feed_coincheck::CoincheckSocketClient;
 use etr_feed_gmo::{GmoCryptSocketClient, GmoForexSocketClient};
 use etr_feed_hyperliquid::HyperliquidSocketClient;
+use etr_feed_okx::OkxSwapSocketClient;
 use etr_publisher::LocalWsPublisher;
 
 /// etr-feed: Rust-based exchange feed handler
@@ -56,6 +60,22 @@ struct Args {
     /// Limit HyperLiquid candle subscriptions to specified pairs only
     #[arg(long)]
     hyperliquid_limit_candles: bool,
+
+    /// Coincheck currency pairs (comma-separated, e.g. "btc_jpy,eth_jpy")
+    #[arg(long = "coincheck-pairs", value_delimiter = ',')]
+    coincheck_pairs: Option<Vec<String>>,
+
+    /// OKX USDT Swap instIds (comma-separated, e.g. "BTC-USDT-SWAP,ETH-USDT-SWAP")
+    #[arg(long = "okx-pairs", value_delimiter = ',')]
+    okx_pairs: Option<Vec<String>>,
+
+    /// Coinbase product_ids (comma-separated, e.g. "BTC-USD,ETH-USD")
+    #[arg(long = "coinbase-pairs", value_delimiter = ',')]
+    coinbase_pairs: Option<Vec<String>>,
+
+    /// Bybit Linear symbols (comma-separated, e.g. "BTCUSDT,ETHUSDT")
+    #[arg(long = "bybit-linear-pairs", value_delimiter = ',')]
+    bybit_linear_pairs: Option<Vec<String>>,
 
     /// BitFlyer FundingRate pairs (comma-separated, e.g. "FX_BTC_JPY")
     #[arg(long = "bitflyer-funding-pairs", value_delimiter = ',')]
@@ -106,6 +126,18 @@ async fn main() {
     }
     if let Some(ref pairs) = args.hyperliquid_pairs {
         info!("HyperLiquid pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.coincheck_pairs {
+        info!("Coincheck pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.okx_pairs {
+        info!("OKX pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.coinbase_pairs {
+        info!("Coinbase pairs: {:?}", pairs);
+    }
+    if let Some(ref pairs) = args.bybit_linear_pairs {
+        info!("Bybit Linear pairs: {:?}", pairs);
     }
     if let Some(ref pairs) = args.bitflyer_funding_pairs {
         info!("BitFlyer FundingRate pairs: {:?}", pairs);
@@ -225,6 +257,58 @@ async fn main() {
         }));
     }
 
+    if let Some(pairs) = args.coincheck_pairs {
+        let mut handler = CoincheckSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("Coincheck feed handler stopped");
+        }));
+    }
+
+    if let Some(pairs) = args.okx_pairs {
+        let mut handler = OkxSwapSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("OKX feed handler stopped");
+        }));
+    }
+
+    if let Some(pairs) = args.coinbase_pairs {
+        let mut handler = CoinbaseSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("Coinbase feed handler stopped");
+        }));
+    }
+
+    if let Some(pairs) = args.bybit_linear_pairs {
+        let mut handler = BybitLinearSocketClient::new(
+            pairs,
+            args.max_reconnects,
+            publisher.clone(),
+            &config.rtp_dir,
+        );
+        handles.push(tokio::spawn(async move {
+            handler.start().await;
+            info!("Bybit Linear feed handler stopped");
+        }));
+    }
+
     if let Some(pairs) = args.bitflyer_funding_pairs {
         let rtp_dir = config.rtp_dir.clone();
         let mut handler = BitFlyerFundingRate::new(pairs, &rtp_dir);
@@ -235,7 +319,7 @@ async fn main() {
     }
 
     if handles.is_empty() {
-        error!("No feed handlers configured. Use --bitflyer-pairs, --bitbank-pairs, --gmo-crypt-pairs, --gmo-forex-pairs, --binance-pairs, --bitmex-pairs, --hyperliquid-pairs, or --bitflyer-funding-pairs to specify at least one.");
+        error!("No feed handlers configured. Use --bitflyer-pairs, --bitbank-pairs, --gmo-crypt-pairs, --gmo-forex-pairs, --binance-pairs, --bitmex-pairs, --hyperliquid-pairs, --coincheck-pairs, --okx-pairs, --coinbase-pairs, --bybit-linear-pairs, or --bitflyer-funding-pairs to specify at least one.");
         return;
     }
 
@@ -324,10 +408,18 @@ where
         write!(writer, "{}|{}|", now.format("%Y-%m-%d %H:%M:%S%.3f"), level)?;
         if self.include_location {
             let file = meta.file().unwrap_or("?");
-            // Strip path prefix, keep only filename
-            let file_short = file.rsplit('/').next().unwrap_or(file);
+            // Show "{crate-name}/{filename}" (skip intermediate "src/" component).
+            // e.g. "crates/etr-feed-bitflyer/src/handler.rs" → "etr-feed-bitflyer/handler.rs"
+            let parts: Vec<&str> = file.rsplitn(3, '/').collect();
+            let file_display = match parts.as_slice() {
+                [fname, "src", rest] => {
+                    let crate_name = rest.rsplit('/').next().unwrap_or(rest);
+                    format!("{}/{}", crate_name, fname)
+                }
+                _ => file.rsplit('/').next().unwrap_or(file).to_string(),
+            };
             let line = meta.line().unwrap_or(0);
-            write!(writer, "{}:{}|", file_short, line)?;
+            write!(writer, "{}:{}|", file_display, line)?;
         }
         ctx.field_format().format_fields(writer.by_ref(), event)?;
         writeln!(writer)
@@ -350,7 +442,7 @@ fn init_tracing(config: &Config) -> WorkerGuard {
         .with(env_filter)
         .with(
             fmt_mod::layer()
-                .event_format(PipeFormatter { include_location: false })
+                .event_format(PipeFormatter { include_location: true })
                 .with_ansi(false)
                 .with_writer(std::io::stdout),
         )

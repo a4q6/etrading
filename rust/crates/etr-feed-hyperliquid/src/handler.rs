@@ -365,9 +365,10 @@ impl HyperliquidSocketClient {
                         // TP log
                         if let Some(logger) = tp_for_loop.get(ccypair) {
                             logger.info(serde_json::to_string(&data).unwrap_or_default());
+                            info!("OHLC write loop emitted candle for {}", ccypair);
+                        } else {
+                            warn!("OHLC write loop: no TP logger for ccypair '{}'", ccypair);
                         }
-
-                        info!("OHLC write loop emitted candle for {}", ccypair);
                     }
                 }
 
@@ -648,13 +649,19 @@ impl HyperliquidSocketClient {
     ) {
         let data = match message.get("data") {
             Some(d) => d,
-            None => return,
+            None => {
+                warn!("handle_candle: missing 'data' field in message: {}", message);
+                return;
+            }
         };
 
         let symbol = data.get("s").and_then(|v| v.as_str()).unwrap_or("");
         let ccypair = match self.symbol_to_pair.get(symbol) {
             Some(p) => p.clone(),
-            None => return,
+            None => {
+                warn!("handle_candle: unknown symbol '{}', not in symbol_to_pair", symbol);
+                return;
+            }
         };
 
         let category = self

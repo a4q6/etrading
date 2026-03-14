@@ -704,8 +704,12 @@ dependencies = [
  "etr-feed-bitbank",
  "etr-feed-bitflyer",
  "etr-feed-bitmex",
+ "etr-feed-bybit",
+ "etr-feed-coinbase",
+ "etr-feed-coincheck",
  "etr-feed-gmo",
  "etr-feed-hyperliquid",
+ "etr-feed-okx",
  "etr-hdb-dumper",
  "etr-publisher",
  "tokio",
@@ -784,6 +788,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "etr-feed-bybit"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "etr-feed-coinbase"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "etr-feed-coincheck"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "etr-feed-gmo"
 version = "0.1.0"
 dependencies = [
@@ -811,6 +866,23 @@ dependencies = [
  "futures-util",
  "ordered-float 4.6.0",
  "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "etr-feed-okx"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "etr-common",
+ "etr-publisher",
+ "futures-util",
+ "ordered-float 4.6.0",
  "serde",
  "serde_json",
  "tokio",

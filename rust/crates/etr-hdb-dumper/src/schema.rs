@@ -25,7 +25,7 @@ pub fn table_list() -> HashMap<&'static str, Vec<&'static str>> {
             vec!["MarketTrade", "Rate", "MarketBook"],
         ),
         ("BitFlyerFundingRate", vec!["FundingRate"]),
-        ("BinanceSocketClient", vec!["Rate", "MarketTrade"]),
+        ("BinanceSocketClient", vec!["Rate", "MarketBook", "MarketTrade"]),
         ("BinanceRestEoption", vec!["ImpliedVolatility"]),
         (
             "CoincheckPrivate",
@@ -38,6 +38,18 @@ pub fn table_list() -> HashMap<&'static str, Vec<&'static str>> {
         (
             "HyperliquidSocketClient",
             vec!["MarketTrade", "Candle"],
+        ),
+        (
+            "OkxSwapSocketClient",
+            vec!["Rate", "MarketBook", "MarketTrade"],
+        ),
+        (
+            "CoinbaseSocketClient",
+            vec!["Rate", "MarketBook", "MarketTrade"],
+        ),
+        (
+            "BybitLinearSocketClient",
+            vec!["Rate", "MarketBook", "MarketTrade"],
         ),
     ])
 }
@@ -57,6 +69,9 @@ pub fn venue_map() -> HashMap<&'static str, &'static str> {
         ("BitBankPrivate", "bitbank"),
         ("CoincheckPrivate", "coincheck"),
         ("HyperliquidSocketClient", "hyperliquid"),
+        ("OkxSwapSocketClient", "okx"),
+        ("CoinbaseSocketClient", "coinbase"),
+        ("BybitLinearSocketClient", "bybit_linear"),
     ])
 }
 
