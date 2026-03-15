@@ -1,15 +1,15 @@
 ./rust/target/release/etr-feed \
-    --bitflyer-pairs FX_BTC_JPY \
+    --bitflyer-pairs FX_BTC_JPY,BTC_JPY,ETH_JPY,XRP_JPY,ETH_BTC \
     --bitflyer-funding-pairs FX_BTC_JPY \
-    --coincheck-pairs btc_jpy \
-    --bitbank-pairs btc_jpy \
-    --gmo-crypt-pairs BTC_JPY \
-    --gmo-forex-pairs USD_JPY \
-    --binance-pairs BTCUSDT \
-    --bitmex-pairs XBTUSD \
-    --hyperliquid-pairs HYPE,BTC \
-    --coinbase-pairs BTC-USD \
-    --okx-pairs BTC-USDT-SWAP \
-    --bybit-linear-pairs BTCUSDT \
+    --coincheck-pairs btc_jpy,eth_jpy,xrp_jpy,doge_jpy \
+    --bitbank-pairs btc_jpy,xrp_jpy,eth_jpy,doge_jpy,ltc_jpy,sol_jpy \
+    --gmo-crypt-pairs BTC,ETH,XRP,LTC,DOGE,SOL,BTC_JPY,ETH_JPY,XRP_JPY,LTC_JPY,DOGE_JPY,SOL_JPY \
+    --gmo-forex-pairs USD_JPY,EUR_USD,GBP_USD,AUD_USD,EUR_JPY,GBP_JPY,CHF_JPY,CAD_JPY,AUD_JPY \
+    --binance-pairs BTCUSDT,ETHUSDT,XRPUSDT,LTCUSDT,SOLUSDT,DOGEUSDT \
+    --bitmex-pairs ETHUSD,XBTUSD,XRPUSD,LTCUSD,DOGEUSD,SOLUSD,BTCUSD \
+    --hyperliquid-pairs HYPE,BTC,HYPE,ETH,BTC,HYPEUSDC,ETHUSDC,SOLUSDC \
+    --coinbase-pairs BTC-USD,ETH-USD,XRP-USD,SOL-USD,DOGE-USD,LTC-USD \
+    --okx-pairs BTC-USDT-SWAP,ETH-USDT-SWAP,XRP-USDT-SWAP,SOL-USDT-SWAP,DOGE-USDT-SWAP,LTC-USDT-SWAP \
+    --bybit-linear-pairs BTCUSDT,ETHUSDT,XRPUSDT,SOLUSDT,DOGEUSDT,LTCUSDT \
     --no-publisher
-    # --port 876510
+    --port 876510
