@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "WebSearch",
+      "WebFetch(*)",
+      "Write(**)",
+      "Edit(**)"
+    ],
+    "deny": [
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git rebase -i*)",
+      "Write(**/data/**)",
+      "Write(**/logs/**)",
+      "Edit(**/data/**)",
+      "Edit(**/logs/**)"
+    ]
+  }
+}

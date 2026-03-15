@@ -17,7 +17,7 @@ pytest tests/
 pytest tests/test_gmo_private_api.py  # 単体テスト
 
 # ノートブック実行 (タイムアウト延長必須)
-jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=3600 notebook.ipynb
+jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=14400 notebook.ipynb
 ```
 
 ## アーキテクチャ
@@ -69,13 +69,6 @@ FeedHandler (core/feed_handler/) - Websocket接続
 - **MarketTrade**: side, price, amount, trade_id
 - **Order / BacktestOrder**: order_type, order_status, executed_amount
 
-### データストレージ
-
-- **HDB**: `data/hdb/{table}/{venue}/{YYYY-MM-DD}/{symbol}/*.parquet`
-- **TP logs**: `data/tp/TP-{HandlerClass}-{Symbol}.log` (`timestamp||{json}` format)
-- **読込**: `load_data(date=[start, end], table, venue, symbol)` → DataFrame
-- **一覧**: `list_table(date)` でその日の利用可能テーブル確認
-- **JQuants**: `etr.data.jquants.sqlite.get(query)`, DDLは `src/etr/data/jquants/ddl/jquants_v2_ddl_00.sql`
 
 ### タイムスタンプ規則
 
@@ -88,14 +81,6 @@ FeedHandler (core/feed_handler/) - Websocket接続
 `.env` から認証情報を読み込み。`Config.BITFLYER_API_KEY`, `Config.GMO_API_KEY`, `Config.TP_DIR`, `Config.HDB_DIR` 等。
 
 ## 重要なパターンと注意点
-
-### BacktestClient の初期化
-
-`BacktestClient` は `super().__init__()` を呼ばないため、手動で設定が必要:
-```python
-client = BacktestClient(venue="gmo")
-client.pending_positions = False  # 必須
-```
 
 ### MarketBook の扱い
 
@@ -115,17 +100,12 @@ bids/asks は numpy配列の `[price, size]` ペア。空チェックは `len(bi
 from etr.core.fifo import calc_matching_table
 df_matching = calc_matching_table(client.transactions_frame)
 # カラム: pl_bp, horizon, rinc_price, rdec_price
+# 詳細は /backtest スキルを参照
 ```
 
 ## 取引手数料
 
-| Venue | 種別 | Maker | Taker |
-|-------|------|-------|-------|
-| GMO | レバレッジ (XXXJPY) | 0bps | 0bps |
-| GMO | 現物 (XXX) | -1bps | 5bps |
-| BitFlyer | FXBTCJPY | 0bps | 0bps |
-| BitBank | 全般 | -2bps | 12bps |
-| HyperLiquid | 全般 | 1.5bps | 4.5bps |
+→ `/fee-schedule` スキルを参照
 
 ## ノートブック規約
 
@@ -143,7 +123,7 @@ df_matching = calc_matching_table(client.transactions_frame)
 ## 本番運用
 
 - 戦略スクリプト: `scripts/run_*.py`
-- フィード処理: `scripts/feed_process.py`
+- フィード処理: `scripts/feed_process.py` (rust版: `scripts/rust/rust_feed_process.sh`)
 - Discord通知: `core/notification/discord.py`
 - 非同期ログ: `AsyncBufferedLogger` (core/async_logger.py)
 - CEP: EMA/OHLC/ImpactPriceのリアルタイム計算 (`core/cep/`)
@@ -158,145 +138,5 @@ df_matching = calc_matching_table(client.transactions_frame)
 * JQuantsの `markets_margin_interest` tableは週次のデータが翌週の第二営業日の夜間に更新される一方、`Date`列は金曜日を示しているので注意
 
 ### データテーブルリスト
-2026/01/10現在のCryptのテーブル一覧は下記 ((*Hyperliquid除く.これは大量の通貨ペアでCandlesテーブルが利用可能).
-| table           | venue       | sym        |
-|:----------------|:------------|:-----------|
-| MarketTrade     | bitmex      | LTCUSD     |
-| MarketTrade     | bitmex      | XBTUSD     |
-| MarketTrade     | bitmex      | DOGEUSD    |
-| MarketTrade     | bitmex      | ETHUSD     |
-| MarketTrade     | bitmex      | XRPUSD     |
-| MarketTrade     | bitmex      | SOLUSD     |
-| MarketTrade     | binance     | ETHUSDT    |
-| MarketTrade     | binance     | DOGEUSDT   |
-| MarketTrade     | binance     | SOLUSDT    |
-| MarketTrade     | binance     | BTCUSDT    |
-| MarketTrade     | binance     | XRPUSDT    |
-| MarketTrade     | binance     | LTCUSDT    |
-| MarketTrade     | bitflyer    | BTCJPY     |
-| MarketTrade     | bitflyer    | FXBTCJPY   |
-| MarketTrade     | bitflyer    | XRPJPY     |
-| MarketTrade     | bitflyer    | ETHBTC     |
-| MarketTrade     | bitflyer    | ETHJPY     |
-| MarketTrade     | gmo         | LTC        |
-| MarketTrade     | gmo         | BTC        |
-| MarketTrade     | gmo         | DOGEJPY    |
-| MarketTrade     | gmo         | BTCJPY     |
-| MarketTrade     | gmo         | DOGE       |
-| MarketTrade     | gmo         | SOL        |
-| MarketTrade     | gmo         | XRPJPY     |
-| MarketTrade     | gmo         | SOLJPY     |
-| MarketTrade     | gmo         | ETH        |
-| MarketTrade     | gmo         | LTCJPY     |
-| MarketTrade     | gmo         | XRP        |
-| MarketTrade     | gmo         | ETHJPY     |
-| MarketTrade     | hyperliquid | HYPE       |
-| MarketTrade     | hyperliquid | BTC        |
-| MarketTrade     | hyperliquid | ETH        |
-| MarketTrade     | hyperliquid | HYPEUSDC   |
-| MarketTrade     | bitbank     | DOGEJPY    |
-| MarketTrade     | bitbank     | BTCJPY     |
-| MarketTrade     | bitbank     | XRPJPY     |
-| MarketTrade     | bitbank     | SOLJPY     |
-| MarketTrade     | bitbank     | LTCJPY     |
-| MarketTrade     | bitbank     | ETHJPY     |
-| MarketLiquidity | bitmex      | LTCUSD     |
-| MarketLiquidity | bitmex      | XBTUSD     |
-| MarketLiquidity | bitmex      | DOGEUSD    |
-| MarketLiquidity | bitmex      | ETHUSD     |
-| MarketLiquidity | bitmex      | XRPUSD     |
-| MarketLiquidity | bitmex      | SOLUSD     |
-| MarketLiquidity | bitflyer    | BTCJPY     |
-| MarketLiquidity | bitflyer    | FXBTCJPY   |
-| MarketLiquidity | bitflyer    | XRPJPY     |
-| MarketLiquidity | bitflyer    | ETHJPY     |
-| MarketLiquidity | gmo         | DOGEJPY    |
-| MarketLiquidity | gmo         | BTCJPY     |
-| MarketLiquidity | gmo         | XRPJPY     |
-| MarketLiquidity | gmo         | SOLJPY     |
-| MarketLiquidity | gmo         | LTCJPY     |
-| MarketLiquidity | gmo         | ETHJPY     |
-| MarketLiquidity | bitbank     | DOGEJPY    |
-| MarketLiquidity | bitbank     | BTCJPY     |
-| MarketLiquidity | bitbank     | XRPJPY     |
-| MarketLiquidity | bitbank     | SOLJPY     |
-| MarketLiquidity | bitbank     | LTCJPY     |
-| MarketLiquidity | bitbank     | ETHJPY     |
-| CircuitBreaker  | bitbank     | DOGEJPY    |
-| CircuitBreaker  | bitbank     | BTCJPY     |
-| CircuitBreaker  | bitbank     | XRPJPY     |
-| CircuitBreaker  | bitbank     | SOLJPY     |
-| CircuitBreaker  | bitbank     | LTCJPY     |
-| CircuitBreaker  | bitbank     | ETHJPY     |
-| MarketBook      | bitmex      | LTCUSD     |
-| MarketBook      | bitmex      | XBTUSD     |
-| MarketBook      | bitmex      | DOGEUSD    |
-| MarketBook      | bitmex      | ETHUSD     |
-| MarketBook      | bitmex      | XRPUSD     |
-| MarketBook      | bitmex      | SOLUSD     |
-| MarketBook      | bitflyer    | BTCJPY     |
-| MarketBook      | bitflyer    | FXBTCJPY   |
-| MarketBook      | bitflyer    | XRPJPY     |
-| MarketBook      | bitflyer    | ETHBTC     |
-| MarketBook      | bitflyer    | ETHJPY     |
-| MarketBook      | gmo         | LTC        |
-| MarketBook      | gmo         | BTC        |
-| MarketBook      | gmo         | DOGEJPY    |
-| MarketBook      | gmo         | BTCJPY     |
-| MarketBook      | gmo         | DOGE       |
-| MarketBook      | gmo         | SOL        |
-| MarketBook      | gmo         | XRPJPY     |
-| MarketBook      | gmo         | SOLJPY     |
-| MarketBook      | gmo         | ETH        |
-| MarketBook      | gmo         | LTCJPY     |
-| MarketBook      | gmo         | XRP        |
-| MarketBook      | gmo         | ETHJPY     |
-| MarketBook      | bitbank     | DOGEJPY    |
-| MarketBook      | bitbank     | BTCJPY     |
-| MarketBook      | bitbank     | XRPJPY     |
-| MarketBook      | bitbank     | SOLJPY     |
-| MarketBook      | bitbank     | LTCJPY     |
-| MarketBook      | bitbank     | ETHJPY     |
-| Rate            | bitmex      | LTCUSD     |
-| Rate            | bitmex      | XBTUSD     |
-| Rate            | bitmex      | DOGEUSD    |
-| Rate            | bitmex      | ETHUSD     |
-| Rate            | bitmex      | XRPUSD     |
-| Rate            | bitmex      | SOLUSD     |
-| Rate            | binance     | ETHUSDT    |
-| Rate            | binance     | DOGEUSDT   |
-| Rate            | binance     | SOLUSDT    |
-| Rate            | binance     | BTCUSDT    |
-| Rate            | binance     | XRPUSDT    |
-| Rate            | binance     | LTCUSDT    |
-| Rate            | bitflyer    | BTCJPY     |
-| Rate            | bitflyer    | FXBTCJPY   |
-| Rate            | bitflyer    | XRPJPY     |
-| Rate            | bitflyer    | ETHBTC     |
-| Rate            | bitflyer    | ETHJPY     |
-| Rate            | gmo         | AUDUSD     |
-| Rate            | gmo         | LTC        |
-| Rate            | gmo         | BTC        |
-| Rate            | gmo         | DOGEJPY    |
-| Rate            | gmo         | BTCJPY     |
-| Rate            | gmo         | CHFJPY     |
-| Rate            | gmo         | DOGE       |
-| Rate            | gmo         | CADJPY     |
-| Rate            | gmo         | AUDJPY     |
-| Rate            | gmo         | GBPUSD     |
-| Rate            | gmo         | EURJPY     |
-| Rate            | gmo         | SOL        |
-| Rate            | gmo         | XRPJPY     |
-| Rate            | gmo         | SOLJPY     |
-| Rate            | gmo         | GBPJPY     |
-| Rate            | gmo         | ETH        |
-| Rate            | gmo         | LTCJPY     |
-| Rate            | gmo         | XRP        |
-| Rate            | gmo         | ETHJPY     |
-| Rate            | gmo         | EURUSD     |
-| Rate            | bitbank     | DOGEJPY    |
-| Rate            | bitbank     | BTCJPY     |
-| Rate            | bitbank     | XRPJPY     |
-| Rate            | bitbank     | SOLJPY     |
-| Rate            | bitbank     | LTCJPY     |
-| Rate            | bitbank     | ETHJPY     |
+
+→ `/data-catalog` スキルを参照
